@@ -20,10 +20,10 @@ bool debug_;
 bool memory_;
 int main(int argc, char** argv) {
 
-  std::vector<graphblas::Index> row_indices;
-  std::vector<graphblas::Index> col_indices;
-  std::vector<float> values;
-  graphblas::Index nrows, ncols, nvals;
+  std::vector<graphblas::Index> row_indices, row_idx_mnist;
+  std::vector<graphblas::Index> col_indices, col_idx_mnist;
+  std::vector<float> values, val_mnist;
+  graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   // Parse arguments
   bool debug;
@@ -33,8 +33,8 @@ int main(int argc, char** argv) {
   char* dat_name;
   int nlayers = 120;
   double bias = -0.3; 
-  std :: vector <graphblas :: Matrix <float> > Weights (nlayers,graphblas :: Matrix <float> (1024,1024) ) ;
-  std 
+  std :: vector <graphblas :: Matrix <float> > Weights (nlayers,graphblas :: Matrix <float> (1024,1024) ) ; 
+   
 
   po::variables_map vm;
   if (argc < 2) {
@@ -53,9 +53,20 @@ int main(int argc, char** argv) {
      * TODO(@ctcyang): fix this
      */
     // read layers
-
+    //std :: string mnist_file = "/home/wangxy/GraphChallenge/code/data/MNIST/sparse-images-1024.mtx" ;
+    //std :: string cate_file = "/home/wangxy/GraphChallenge/code/data/DNN/neuron1024-l120-categories.mtx";
+    std:: cout<< argv[0] <<argv[1] <<std::endl;
+    readMtx(argv[argc-2], &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist,
+        &nval_mnist, directed, mtxinfo, NULL);
+    graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
+    CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL,
+      NULL));
+    CHECK(mnist.nrows(&nrows));
+    CHECK(mnist.ncols(&ncols));
+    CHECK(mnist.nvals(&nvals));
+    if (debug) CHECK(mnist.print());
+    std::cout << "#mnist values = " << nval_mnist << std::endl;    
     
-
     for (int layer = 0; layer < nlayers; layer ++ )
     {
         std :: string file_name = std :: string(argv[argc-1]) + "n1024-l";
@@ -78,10 +89,11 @@ int main(int argc, char** argv) {
         CHECK(a.nvals(&nvals));
         Weights[layer] = a ;
         CHECK(a.print());
-        std::cout << "#row_indices = " << row_indices.size() << std::endl;
-        std::cout << "#col_induces = " << col_indices.size() << std::endl;
-        std::cout << "#values = " << values.size() << std::endl; 
+        std::cout << "#values = " << values.size()  << std::endl; 
     }
+    graphblas::Descriptor desc;
+    CHECK(desc.loadArgs(vm));
+
   }
 
 
