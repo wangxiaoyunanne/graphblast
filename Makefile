@@ -11,7 +11,11 @@ INC += -I$(MGPU_DIR) -I$(CUB_DIR) -I$(BOOST_DIR) -I$(GRB_DIR)
 # Dependency Lists
 #-------------------------------------------------------------------------------
 
-all: gbfs gdiameter gsssp glgc gmis ggc ggc_cusparse gpr
+all: gDNN gbfs gdiameter gsssp glgc gmis ggc ggc_cusparse gpr
+
+gDNN: example/*
+	mkdir -p bin
+	nvcc -g $(ARCH) $(OPTIONS) -o bin/gDNN example/gDNN.cu $(INC) $(GRB_DEPS) $(LIBS)
 
 gbfs: example/*
 	mkdir -p bin
