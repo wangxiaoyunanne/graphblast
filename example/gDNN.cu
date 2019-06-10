@@ -34,7 +34,7 @@ int main(int argc, char** argv) {
   int nlayers = 120;
   double bias = -0.3; 
   std :: vector <graphblas :: Matrix <float> > Weights (nlayers,graphblas :: Matrix <float> (1024,1024) ) ;
-
+  std 
 
   po::variables_map vm;
   if (argc < 2) {
@@ -54,7 +54,9 @@ int main(int argc, char** argv) {
      */
     // read layers
 
-    for (int layer = 0; layer < 120; layer ++ )
+    
+
+    for (int layer = 0; layer < nlayers; layer ++ )
     {
         std :: string file_name = std :: string(argv[argc-1]) + "n1024-l";
         file_name += std::to_string(layer+1);
