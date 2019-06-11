@@ -55,9 +55,9 @@ int main(int argc, char** argv) {
     // read layers
     //std :: string mnist_file = "/home/wangxy/GraphChallenge/code/data/MNIST/sparse-images-1024.mtx" ;
     //std :: string cate_file = "/home/wangxy/GraphChallenge/code/data/DNN/neuron1024-l120-categories.mtx";
-    std:: cout<< argv[0] <<argv[1] <<std::endl;
     readMtx(argv[argc-2], &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist,
         &nval_mnist, directed, mtxinfo, NULL);
+    /*
     graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
     CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL,
       NULL));
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
     CHECK(mnist.nvals(&nvals));
     if (debug) CHECK(mnist.print());
     std::cout << "#mnist values = " << nval_mnist << std::endl;    
-    
+    */
     for (int layer = 0; layer < nlayers; layer ++ )
     {
         std :: string file_name = std :: string(argv[argc-1]) + "n1024-l";
@@ -93,14 +93,26 @@ int main(int argc, char** argv) {
     }
     graphblas::Descriptor desc;
     CHECK(desc.loadArgs(vm));
+    if (transpose)
+        CHECK(desc.toggle(graphblas::GrB_INP1)); 
 
+  } //end of reading
+
+  graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
+  CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL,
+        NULL));
+  CHECK(mnist.nrows(&nrows));
+  CHECK(mnist.ncols(&ncols));
+  CHECK(mnist.nvals(&nvals));
+  if (debug) CHECK(mnist.print());
+  std::cout << "#mnist values = " << nval_mnist << std::endl;
+  graphblas::Matrix<float> y(nrow_mnist, ncol_mnist);
+  y = mnist ;
+  for (int layer = 0; layer < nlayers; layer++ )
+  {
+      y = graphblas ::algorithm :: DNN (&y, &Weights[layer]);
   }
-
-
   
-
-
-
 
 
 return 0;
