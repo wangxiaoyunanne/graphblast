@@ -5,6 +5,7 @@ Makefile
 cmake_install.cmake
 install_manifest.txt
 result/*
+bin/*
 
 # Ignore gedit duplicates
 *~
