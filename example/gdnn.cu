@@ -20,15 +20,16 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
-  int nlayers = 120;
+  int nlayers = 1;
   int numNeurons = 1024;
+  int numFeatures = 60000;
   float bias = -0.3f;
 
   std::vector<graphblas::Index> row_indices, row_idx_mnist;
   std::vector<graphblas::Index> col_indices, col_idx_mnist;
   std::vector<float> values, val_mnist;
   std::vector<int> true_categories_idx;
-  std::vector<bool> true_categories(60000,0);
+  std::vector<bool> true_categories(numFeatures, 0);
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   // // Vectors to build bias MATRIX
@@ -48,7 +49,7 @@ int main(int argc, char** argv) {
 
   std::vector<graphblas::Matrix<float>> Weights(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
   // std::vector<graphblas::Matrix<float>> Biases(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
-  graphblas::Vector<bool> TrueCategories(60000);
+  graphblas::Vector<bool> TrueCategories(numFeatures);
   po::variables_map vm;
 
   if (argc < 2) {
@@ -56,33 +57,29 @@ int main(int argc, char** argv) {
     exit(1);
   }
 
+  // Parse args
   parseArgs(argc, argv, &vm);
   debug     = vm["debug"    ].as<bool>();
   transpose = vm["transpose"].as<bool>();
   mtxinfo   = vm["mtxinfo"  ].as<bool>();
   directed  = vm["directed" ].as<int>();
 
-  /*!
-   * This is an imperfect solution, because this should happen in
-   * desc.loadArgs(vm) instead of application code!
-   * TODO(@ctcyang): fix this
-   */
-  std :: ifstream categ_file;
-  categ_file.open (argv[argc-3]);
+  // Read true categories
+  std::ifstream categories_file;
+  categories_file.open(argv[argc-3]);
   int x;
-  while (categ_file >> x) {
+  while (categories_file >> x) {
     true_categories_idx.push_back(x);
     true_categories[x-1] = 1;
   }
-
-  TrueCategories.build (&true_categories, 60000); 
-
-  //graphblas::Descriptor desc;
-  //CHECK(desc.loadArgs(vm));
+  TrueCategories.build(&true_categories, numFeatures);
+  if (debug)
+    CHECK(TrueCategories.print());
 
   // Read input features
   readMtx(argv[argc-2], &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist,
       &nval_mnist, directed, mtxinfo, NULL);
+  std::cout << nrow_mnist << ", " << ncol_mnist << std::endl;
   graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
   CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL,
     NULL));
@@ -117,14 +114,19 @@ int main(int argc, char** argv) {
       // CHECK(b.print());
   }
 
+  // bias VECTOR
+  Vector<float> Biases(nrows);
+  CHECK(Biases.fill(bias));
+
+  /*!
+   * This is an imperfect solution, because this should happen in
+   * desc.loadArgs(vm) instead of application code!
+   * TODO(@ctcyang): fix this
+   */
   graphblas::Descriptor desc;
   CHECK(desc.loadArgs(vm));
   if (transpose)
-    CHECK(desc.toggle(graphblas::GrB_INP1)); 
-  // bias VECTOR
-  Vector<float> Biases(nrows);
-  std :: cout<< "start biases" <<std :: endl;
-  CHECK(Biases.fill(bias));
+    CHECK(desc.toggle(graphblas::GrB_INP1));
 
   // // Cpu BFS
   // CpuTimer dnn_cpu;
@@ -137,7 +139,10 @@ int main(int argc, char** argv) {
   // Warmup
   CpuTimer warmup;
   warmup.Start();
-  graphblas::algorithm::dnn(Weights, Biases, numNeurons, mnist, true, TrueCategories, &desc);
+  graphblas::algorithm::dnn(numNeurons, numFeatures, 
+                            mnist, Weights, Biases, 
+                            true, TrueCategories, 
+                            &desc);
   warmup.Stop();
 
   // // Benchmark
