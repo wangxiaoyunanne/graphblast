@@ -27,6 +27,8 @@ int main(int argc, char** argv) {
   std::vector<graphblas::Index> row_indices, row_idx_mnist;
   std::vector<graphblas::Index> col_indices, col_idx_mnist;
   std::vector<float> values, val_mnist;
+  std::vector<int> true_categories_idx;
+  std::vector<bool> true_categories(60000,0);
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   // // Vectors to build bias MATRIX
@@ -65,6 +67,16 @@ int main(int argc, char** argv) {
    * desc.loadArgs(vm) instead of application code!
    * TODO(@ctcyang): fix this
    */
+  std :: ifstream categ_file;
+  categ_file.open (argv[argc-3]);
+  int x;
+  while (categ_file >> x) {
+    true_categories_idx.push_back(x);
+    true_categories[x-1] = 1;
+  }
+
+
+
   graphblas::Descriptor desc;
   CHECK(desc.loadArgs(vm));
 
