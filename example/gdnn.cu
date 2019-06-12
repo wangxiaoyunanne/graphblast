@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 
   std::vector<graphblas::Matrix<float>> Weights(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
   // std::vector<graphblas::Matrix<float>> Biases(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
-  graphblas::Vector<float> TrueCategories(numNeurons);
+  graphblas::Vector<bool> TrueCategories(numNeurons);
   po::variables_map vm;
 
   if (argc < 2) {
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
   // Warmup
   CpuTimer warmup;
   warmup.Start();
-  graphblas::algorithm::dnn(Weights, Biases, numNeurons, mnist, false, TrueCategories, &desc);
+  graphblas::algorithm::dnn(Weights, Biases, numNeurons, mnist, true, TrueCategories, &desc);
   warmup.Stop();
 
   // // Benchmark
