@@ -25,9 +25,9 @@ int main(int argc, char** argv) {
   int numFeatures = 60000;
   float bias = -0.3f;
 
-  std::vector<graphblas::Index> row_indices, row_idx_mnist;
+  std::vector<graphblas::Index> row_indices, row_idx_mnist, bias_idx(numNeurons);
   std::vector<graphblas::Index> col_indices, col_idx_mnist;
-  std::vector<float> values, val_mnist;
+  std::vector<float> values, val_mnist, bias_v(numNeurons, bias);
   std::vector<int> true_categories_idx;
   std::vector<bool> true_categories(numFeatures, 0);
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
@@ -115,8 +115,9 @@ int main(int argc, char** argv) {
   }
 
   // bias VECTOR
-  Vector<float> Biases(nrows);
-  CHECK(Biases.fill(bias));
+  graphblas ::  Vector<float> Biases(nrows);
+  for (int i =0; i < numNeurons; i++) {bias_idx [i] = i ;}
+  CHECK(Biases.build(&bias_idx, &bias_v, nrows));
 
   /*!
    * This is an imperfect solution, because this should happen in
