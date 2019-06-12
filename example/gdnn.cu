@@ -117,7 +117,7 @@ int main(int argc, char** argv) {
   // bias VECTOR
   graphblas ::  Vector<float> Biases(nrows);
   for (int i =0; i < numNeurons; i++) {bias_idx [i] = i ;}
-  CHECK(Biases.build(&bias_idx, &bias_v, nrows));
+  CHECK(Biases.build(&bias_idx, &bias_v, nrows,GrB_NULL));
 
   /*!
    * This is an imperfect solution, because this should happen in
