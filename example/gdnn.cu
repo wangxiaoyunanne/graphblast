@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 
   std::vector<graphblas::Matrix<float>> Weights(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
   // std::vector<graphblas::Matrix<float>> Biases(nlayers, graphblas::Matrix<float>(numNeurons, numNeurons));
-  graphblas::Vector<bool> TrueCategories(numNeurons);
+  graphblas::Vector<bool> TrueCategories(60000);
   po::variables_map vm;
 
   if (argc < 2) {
@@ -75,10 +75,10 @@ int main(int argc, char** argv) {
     true_categories[x-1] = 1;
   }
 
+  TrueCategories.build (&true_categories, 60000); 
 
-
-  graphblas::Descriptor desc;
-  CHECK(desc.loadArgs(vm));
+  //graphblas::Descriptor desc;
+  //CHECK(desc.loadArgs(vm));
 
   // Read input features
   readMtx(argv[argc-2], &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist,
@@ -117,8 +117,13 @@ int main(int argc, char** argv) {
       // CHECK(b.print());
   }
 
+  graphblas::Descriptor desc;
+  CHECK(desc.loadArgs(vm));
+  if (transpose)
+    CHECK(desc.toggle(graphblas::GrB_INP1)); 
   // bias VECTOR
   Vector<float> Biases(nrows);
+  std :: cout<< "start biases" <<std :: endl;
   CHECK(Biases.fill(bias));
 
   // // Cpu BFS
