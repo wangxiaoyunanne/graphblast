@@ -31,7 +31,7 @@ Info dnn
     //--------------------------------------------------------------------------
 
     int nlayers = W.size();
-    graphblas::Index Y0_rows, Y0_cols;
+    Index Y0_rows, Y0_cols, Y0_nrows, Y0_ncols;
     CHECK(TrueCategories.size(&Y0_rows));
     if (checkResult && Y0_rows == 0) // Vector doesn't have .empty()
     {
@@ -59,8 +59,9 @@ Info dnn
     //--------------------------------------------------------------------------
 
     Matrix<T> Y(Y0_rows, Y0_cols);
+    std :: cout << "initialize Y after" << std :: endl;
     // (*Yhandle) = NULL;
-
+    
     backend::GpuTimer gpu_infer;
     float gpu_infer_time = 0.f;
     gpu_infer.Start();
@@ -70,16 +71,22 @@ Info dnn
         mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), 
                     ((layer == 0) ? &Y0 : &Y), &(W[layer]), desc);
 
+        std :: cout << "after mxm" <<std :: endl;
+
         // Null mask and accum, and + semiring for C = A + B
         // bias MATRIX
         // eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &(Bias[layer]), desc);
         // bias VECTOR
         CHECK(desc->toggle(graphblas::GrB_INP1));
+        std :: cout << "toggle, GrB_INP1" <<std :: endl;
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &Bias, desc);
+        std :: cout << "after eWiseMult Bias" <<std :: endl;
+
         CHECK(desc->toggle(graphblas::GrB_INP1));
 
         // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(), &Y, 0.0, desc);
+        std :: cout << "after relu" <<std :: endl;
 
         // Optional: ReLU clipping 
     }
