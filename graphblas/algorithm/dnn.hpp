@@ -22,6 +22,8 @@ namespace algorithm {
 // Y0: Matrix<T>, size (numFeatures, numNeurons)
 
 // TrueCategories: Vector<bool>, size (numFeatures, 1)
+// Or:
+// TrueCategories: std::vector<bool>, size(numFeatures, 1)
 //--------------------------------------------------------------------------
 
 template <typename Enumeration>
@@ -46,7 +48,8 @@ Info dnn
     Vector<T>& Bias,              // Bias, size (numNeurons, 1)
 
     bool checkResult,             // Check results or not
-    Vector<bool>& TrueCategories, // TrueCategories, size (numFeatures, 1)
+    // Vector<bool>& TrueCategories, // TrueCategories, size (numFeatures, 1)
+    std::vector<bool>& TrueCategories, // Alternative: TrueCategories, size (numFeatures, 1)
 
     Descriptor* desc              // Descriptor
 )
@@ -57,7 +60,8 @@ Info dnn
 
     int nlayers = W.size();
     Index Y0_rows, Y0_cols, Y0_nrows, Y0_ncols;
-    CHECK(TrueCategories.size(&Y0_rows));
+    // CHECK(TrueCategories.size(&Y0_rows));
+    Y0_rows = TrueCategories.size(); // Alternative: dense vector
     if (checkResult && Y0_rows == 0) // Vector doesn't have .empty()
     {
         std::cout << "ERROR: Check results but results not provided." << std::endl;
@@ -92,15 +96,17 @@ Info dnn
     gpu_infer.Start();
     for (int layer = 0; layer < nlayers; layer++)
     {
-        Storage s;
-        
+        std::cout << "##########\nLayer: #" << (layer + 1) << std::endl;
 
+        Storage s;
         // Null mask and accum, and *+ semiring for C = A * B
+        if (layer > 0)
+          CHECK(Y.print());
         mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), 
                     ((layer == 0) ? &Y0 : &Y), &(W[layer]), desc);
 
         CHECK(Y0.getStorage(&s));
-        std::cout << as_integer(s) << std::endl;
+        std::cout << "Y0 storage: " << as_integer(s) << std::endl;
         CHECK(Y.getStorage(&s));
         std::cout << "Y storage: " << as_integer(s) << std::endl;
         CHECK(W[layer].getStorage(&s));
@@ -130,43 +136,49 @@ Info dnn
     if (checkResult) {
       Vector<T> C(numFeatures);
       Vector<bool> Categories(numFeatures);
-      std::vector<Index> Categories_ind;
       std::vector<bool> Categories_val;
+      std::vector<Index> Categories_ind; // If Categories is sparse
       Index Categories_ind_size;
 
       backend::GpuTimer gpu_check;
       float gpu_check_time = 0.f;
       gpu_check.Start();
 
+      Storage s;
       // C = sum(Y)
       reduce<T, T, T>(&C, GrB_NULL, GrB_NULL, PlusMonoid<T>(), &Y, desc);
+      CHECK(Y.getStorage(&s));
+      std::cout << "Y0 storage before: " << as_integer(s) << std::endl;
 
       // Extract category pattern into dense vectors
-      Storage s;
       CHECK(C.getStorage(&s));
       CHECK(Categories.setStorage(s));
-      std::cout << "True categories storage: " << as_integer(s) << std::endl;
+      std::cout << "Categories storage before: " << as_integer(s) << std::endl;
       assign<bool, T>(&Categories, &C, GrB_NULL, 1, GrB_ALL, numFeatures, desc); // Non-zero = true, zero = false
+      CHECK(Categories.getStorage(&s));
+      std::cout << "Categories storage after: " << as_integer(s) << std::endl;
       std::cout << "....." << std::endl;
 
       CHECK(Categories.print());
-      CHECK(Categories.extractTuples(&Categories_ind, &Categories_val, &Categories_ind_size)); // Convert sparse to dense
+      Categories_ind_size = numFeatures;
+      CHECK(Categories.extractTuples(&Categories_val, &Categories_ind_size));
 
       gpu_check.Stop();
       gpu_check_time += gpu_check.ElapsedMillis();
       std::cout << "Test passed" << std::endl;
-      std::cout << "Check time: %f" << std::endl;
+      std::cout << "Check time: " << gpu_check_time << std::endl;
 
-      // // Check correctness (not timed)
-      // for (int i = 0; i < Categories_ind_size; i++) {
+      // Check correctness (not timed)
+      // for (int i = 0; i < Categories_ind_size; i++) { // Sparse version
       //   Index idx = Categories_ind[i];
-      //   if (Categories_val[idx] != TrueCategories[idx]) {
-      //       // printArray("True: ", TrueCategories, 5);
-      //       // printArray("Categores: ", Categories, 5);
-      //       std::cout << "ERROR: Mismatch at " << idx << ": (" << Categories_val[idx] << " vs " << TrueCategories[idx] << std::endl;
-      //       return GrB_PANIC;
-      //   }
-      // }
+      for (Index idx = 0; idx < numFeatures; idx++) { // Dense version
+        if (Categories_val[idx] != TrueCategories[idx]) {
+            // printArray("True: ", TrueCategories, 5);
+            // printArray("Categores: ", Categories, 5);
+            std::cout << "ERROR: Mismatch at " << idx << ": (" << Categories_val[idx] << " vs " << TrueCategories[idx] << ")" << std::endl;
+            return GrB_PANIC;
+        }
+      }
     }
 
     //--------------------------------------------------------------------------

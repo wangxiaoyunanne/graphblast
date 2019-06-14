@@ -20,7 +20,7 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
-  int nlayers = 1;
+  int nlayers = 5;
   int numNeurons = 1024;
   int numFeatures = 60000;
   float bias = -0.3f;
@@ -115,9 +115,11 @@ int main(int argc, char** argv) {
   }
 
   // bias VECTOR
-  graphblas ::  Vector<float> Biases(nrows);
-  for (int i =0; i < numNeurons; i++) {bias_idx [i] = i ;}
-  CHECK(Biases.build(&bias_idx, &bias_v, nrows,GrB_NULL));
+  // graphblas ::  Vector<float> Biases(nrows);
+  // for (int i =0; i < numNeurons; i++) {bias_idx [i] = i ;}
+  // CHECK(Biases.build(&bias_idx, &bias_v, nrows,GrB_NULL));
+  Vector<float> Biases(nrows);
+  CHECK(Biases.fill(bias));
 
   /*!
    * This is an imperfect solution, because this should happen in
@@ -142,7 +144,7 @@ int main(int argc, char** argv) {
   warmup.Start();
   graphblas::algorithm::dnn(numNeurons, numFeatures, 
                             mnist, Weights, Biases, 
-                            true, TrueCategories, 
+                            true, /*TrueCategories,*/ true_categories, // Alternative: dense vector
                             &desc);
   warmup.Stop();
 
