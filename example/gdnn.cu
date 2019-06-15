@@ -20,7 +20,7 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
-  int nlayers = 5;
+  int nlayers = 10;
   int numNeurons = 1024;
   int numFeatures = 60000;
   float bias = -0.3f;
@@ -79,6 +79,7 @@ int main(int argc, char** argv) {
   // Read input features
   readMtx(argv[argc-2], &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist,
       &nval_mnist, directed, mtxinfo, NULL);
+  std::cout<< argv[argc-2] <<std::endl;
   std::cout << nrow_mnist << ", " << ncol_mnist << std::endl;
   graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
   CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL,

@@ -87,30 +87,28 @@ Info dnn
     //--------------------------------------------------------------------------
 
     Matrix<T> Y(Y0_rows, Y0_cols);
+    Y.dup(&Y0);
     
     backend::GpuTimer gpu_infer;
     float gpu_infer_time = 0.f;
     gpu_infer.Start();
     for (int layer = 0; layer < nlayers; layer++)
     {
-        std::cout << "##########\nLayer: #" << (layer + 1) << std::endl;
+        std::cout << "################## Layer: #" << (layer + 1) << " ##################" << std::endl;
 
         Storage s;
         // Null mask and accum, and *+ semiring for C = A * B
-        
-        std::cout << "W: *****" << std::endl;
-        CHECK(W[layer].print());
-        // if (layer > 0) {
-        //   std::cout << "Y: *****" << std::endl;
-        //   CHECK(Y.print());
-        // }
-        mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), 
-                    ((layer == 0) ? &Y0 : &Y), &(W[layer]), desc);
+        std::cout << "********** MXM" << std::endl;
+        // std::cout << "W: *****" << std::endl;
+        // CHECK(W[layer].print());
+        // std::cout << "Y: *****" << std::endl;
+        // CHECK(Y.print());
+        mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &Y, &(W[layer]), desc);
 
         // CHECK(Y0.getStorage(&s));
         // std::cout << "Y0 storage: " << as_integer(s) << std::endl;
         // CHECK(Y.getStorage(&s));
-        // std::cout << "Y storage: " << as_integer(s) << std::endl;
+        // std::cout << "Y storage after Y*W: " << as_integer(s) << std::endl;
         // CHECK(W[layer].getStorage(&s));
         // std::cout << "W storage: " << as_integer(s) << std::endl;
 
@@ -118,6 +116,7 @@ Info dnn
         // bias MATRIX
         // eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &(Bias[layer]), desc);
         // bias VECTOR
+        std::cout << "********** Plus bias" << std::endl;
         CHECK(desc->toggle(graphblas::GrB_INP1));
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &Bias, desc);
         CHECK(desc->toggle(graphblas::GrB_INP1));
@@ -125,9 +124,10 @@ Info dnn
         // std::cout << "Bias storage: " << as_integer(s) << std::endl;
 
         // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
+        std::cout << "********** ReLU" << std::endl;
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(), &Y, 0.0, desc);
         // CHECK(Y.getStorage(&s));
-        // std::cout << "Y storage: " << as_integer(s) << std::endl;
+        // std::cout << "Y storage after ReLU: " << as_integer(s) << std::endl;
 
         // Optional: ReLU clipping 
     }
