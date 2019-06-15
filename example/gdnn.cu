@@ -98,14 +98,12 @@ int main(int argc, char** argv) {
       std::cout<< file_name <<std::endl;
       
       // Build matrix
-      graphblas::Matrix<float> weight(nrows, ncols);
-      CHECK(weight.build(&row_indices, &col_indices, &values, nvals, GrB_NULL, dat_name));
-      // CHECK(weight.nrows(&nrows));
-      // CHECK(weight.ncols(&ncols));
-      // CHECK(weight.nvals(&nvals));
-      Weights[layer] = weight;
+      CHECK((Weights[layer]).build(&row_indices, &col_indices, &values, nvals, GrB_NULL, dat_name));
+      // CHECK(Weights[layer].nrows(&nrows));
+      // CHECK(Weights[layer].ncols(&ncols));
+      // CHECK(Weights[layer].nvals(&nvals));
       if (debug)
-        CHECK(weight.print());
+        CHECK(Weights[layer].print());
 
       // bias MATRIX
       // graphblas::Matrix<float> b(nrows, ncols);

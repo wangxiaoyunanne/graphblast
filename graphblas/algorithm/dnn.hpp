@@ -40,7 +40,6 @@ Info dnn
     int numNeurons,               // # of neurons
     int numFeatures,              // # of features
 
-    // Matrix<T> *Yhandle,           // Y, created on output
     // std::vector<Matrix<T>>& Bias, // Bias [0..nlayers-1], diagonal nneurons-by-nneurons
 
     Matrix<T>& Y0,                // Input features: nfeatures-by-nneurons
@@ -88,8 +87,6 @@ Info dnn
     //--------------------------------------------------------------------------
 
     Matrix<T> Y(Y0_rows, Y0_cols);
-    std::cout << "initialize Y after" << std::endl;
-    // (*Yhandle) = NULL;
     
     backend::GpuTimer gpu_infer;
     float gpu_infer_time = 0.f;
@@ -100,17 +97,22 @@ Info dnn
 
         Storage s;
         // Null mask and accum, and *+ semiring for C = A * B
-        if (layer > 0)
-          CHECK(Y.print());
+        
+        std::cout << "W: *****" << std::endl;
+        CHECK(W[layer].print());
+        // if (layer > 0) {
+        //   std::cout << "Y: *****" << std::endl;
+        //   CHECK(Y.print());
+        // }
         mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), 
                     ((layer == 0) ? &Y0 : &Y), &(W[layer]), desc);
 
-        CHECK(Y0.getStorage(&s));
-        std::cout << "Y0 storage: " << as_integer(s) << std::endl;
-        CHECK(Y.getStorage(&s));
-        std::cout << "Y storage: " << as_integer(s) << std::endl;
-        CHECK(W[layer].getStorage(&s));
-        std::cout << "W storage: " << as_integer(s) << std::endl;
+        // CHECK(Y0.getStorage(&s));
+        // std::cout << "Y0 storage: " << as_integer(s) << std::endl;
+        // CHECK(Y.getStorage(&s));
+        // std::cout << "Y storage: " << as_integer(s) << std::endl;
+        // CHECK(W[layer].getStorage(&s));
+        // std::cout << "W storage: " << as_integer(s) << std::endl;
 
         // Null mask and accum, and + semiring for C = A + B
         // bias MATRIX
@@ -119,13 +121,13 @@ Info dnn
         CHECK(desc->toggle(graphblas::GrB_INP1));
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &Bias, desc);
         CHECK(desc->toggle(graphblas::GrB_INP1));
-        CHECK(Bias.getStorage(&s));
-        std::cout << "Bias storage: " << as_integer(s) << std::endl;
+        // CHECK(Bias.getStorage(&s));
+        // std::cout << "Bias storage: " << as_integer(s) << std::endl;
 
         // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
         eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(), &Y, 0.0, desc);
-        CHECK(Y.getStorage(&s));
-        std::cout << "Y storage: " << as_integer(s) << std::endl;
+        // CHECK(Y.getStorage(&s));
+        // std::cout << "Y storage: " << as_integer(s) << std::endl;
 
         // Optional: ReLU clipping 
     }
@@ -147,19 +149,19 @@ Info dnn
       Storage s;
       // C = sum(Y)
       reduce<T, T, T>(&C, GrB_NULL, GrB_NULL, PlusMonoid<T>(), &Y, desc);
-      CHECK(Y.getStorage(&s));
-      std::cout << "Y0 storage before: " << as_integer(s) << std::endl;
+      // CHECK(Y.getStorage(&s));
+      // std::cout << "Y0 storage before: " << as_integer(s) << std::endl;
 
       // Extract category pattern into dense vectors
-      CHECK(C.getStorage(&s));
-      CHECK(Categories.setStorage(s));
-      std::cout << "Categories storage before: " << as_integer(s) << std::endl;
+      // CHECK(C.getStorage(&s));
+      // CHECK(Categories.setStorage(s));
+      // std::cout << "Categories storage before: " << as_integer(s) << std::endl;
       assign<bool, T>(&Categories, &C, GrB_NULL, 1, GrB_ALL, numFeatures, desc); // Non-zero = true, zero = false
-      CHECK(Categories.getStorage(&s));
-      std::cout << "Categories storage after: " << as_integer(s) << std::endl;
-      std::cout << "....." << std::endl;
+      // CHECK(Categories.getStorage(&s));
+      // std::cout << "Categories storage after: " << as_integer(s) << std::endl;
+      // std::cout << "....." << std::endl;
 
-      CHECK(Categories.print());
+      // CHECK(Categories.print());
       Categories_ind_size = numFeatures;
       CHECK(Categories.extractTuples(&Categories_val, &Categories_ind_size));
 
@@ -184,15 +186,12 @@ Info dnn
     //--------------------------------------------------------------------------
     // return result
     //--------------------------------------------------------------------------
-
-    // (*Yhandle) = Y;
     return GrB_SUCCESS;
 }
 
 template <typename T>
 Info dnnCpu
 (
-    // Matrix<T> *Yhandle,      // Y, created on output
     std::vector<Matrix<T>>& W,  // W [0..nlayers-1], each nneurons-by-nneurons
     // std::vector<Matrix<T>>& Bias,          // Bias [0..nlayers-1], diagonal nneurons-by-nneurons
     Vector<T>& Bias,
