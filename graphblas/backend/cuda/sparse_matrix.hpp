@@ -92,6 +92,7 @@ class SparseMatrix {
   Info fill(Index axis, Index nvals, U start);
   template <typename U>
   Info fillAscending(Index axis, Index nvals, U start);
+  Info swap(SparseMatrix* rhs);
 
  private:
   Info allocateCpu();
@@ -615,6 +616,37 @@ Info SparseMatrix<T>::fillAscending(Index axis, Index nvals, U start) {
   }
 
   CHECK(cpuToGpu());
+  return GrB_SUCCESS;
+}
+
+template <typename T>
+Info SparseMatrix<T>::swap(SparseMatrix* rhs) {  // NOLINK(build/include_what_you_use)
+  // Swap scalars
+  std::swap(nrows_,     rhs->nrows_);
+  std::swap(ncols_,     rhs->ncols_);
+  std::swap(nvals_,     rhs->nvals_);
+  std::swap(ncapacity_, rhs->ncapacity_);
+  std::swap(nempty_,    rhs->nempty_);
+
+  // Swap CPU pointers
+  std::swap(h_csrRowPtr_, rhs->h_csrRowPtr_);
+  std::swap(h_csrColInd_, rhs->h_csrColInd_);
+  std::swap(h_csrVal_,    rhs->h_csrVal_);
+  std::swap(h_cscColPtr_, rhs->h_cscColPtr_);
+  std::swap(h_cscRowInd_, rhs->h_cscRowInd_);
+  std::swap(h_cscVal_,    rhs->h_cscVal_);
+
+  // Swap GPU pointers
+  std::swap(d_csrRowPtr_, rhs->d_csrRowPtr_);
+  std::swap(d_csrColInd_, rhs->d_csrColInd_);
+  std::swap(d_csrVal_,    rhs->d_csrVal_);
+  std::swap(d_cscColPtr_, rhs->d_cscColPtr_);
+  std::swap(d_cscRowInd_, rhs->d_cscRowInd_);
+  std::swap(d_cscVal_,    rhs->d_cscVal_);
+
+  std::swap(need_update_, rhs->need_update_);
+  std::swap(symmetric_,   rhs->symmetric_);
+  std::swap(format_,      rhs->format_);
   return GrB_SUCCESS;
 }
 

@@ -7,6 +7,7 @@
 
 #include "graphblas/algorithm/test_dnn.hpp"
 #include "graphblas/backend/cuda/util.hpp"
+#include "test/test.hpp"
 
 namespace graphblas {
 namespace algorithm {
@@ -88,7 +89,8 @@ Info dnn
 
     Matrix<T> Y(Y0_rows, Y0_cols);
     Y.dup(&Y0);
-    
+    Matrix<T> Y_swap(Y0_rows, Y0_cols);
+
     backend::GpuTimer gpu_infer;
     float gpu_infer_time = 0.f;
     gpu_infer.Start();
@@ -103,7 +105,9 @@ Info dnn
         // CHECK(W[layer].print());
         // std::cout << "Y: *****" << std::endl;
         // CHECK(Y.print());
-        mxm<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &Y, &(W[layer]), desc);
+        mxm<T, T, T, T>(&Y_swap, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &Y, &(W[layer]), desc);
+
+        CHECK(Y.swap(&Y_swap));
 
         // CHECK(Y0.getStorage(&s));
         // std::cout << "Y0 storage: " << as_integer(s) << std::endl;
@@ -138,6 +142,7 @@ Info dnn
     if (checkResult) {
       Vector<T> C(numFeatures);
       Vector<bool> Categories(numFeatures);
+      CHECK(Categories.fill(false));
       std::vector<bool> Categories_val;
       std::vector<Index> Categories_ind; // If Categories is sparse
       Index Categories_ind_size;
@@ -156,7 +161,7 @@ Info dnn
       // CHECK(C.getStorage(&s));
       // CHECK(Categories.setStorage(s));
       // std::cout << "Categories storage before: " << as_integer(s) << std::endl;
-      assign<bool, T>(&Categories, &C, GrB_NULL, 1, GrB_ALL, numFeatures, desc); // Non-zero = true, zero = false
+      assign<bool, T>(&Categories, &C, GrB_NULL, true, GrB_ALL, numFeatures, desc); // Non-zero = true, zero = false
       // CHECK(Categories.getStorage(&s));
       // std::cout << "Categories storage after: " << as_integer(s) << std::endl;
       // std::cout << "....." << std::endl;
@@ -173,14 +178,7 @@ Info dnn
       // Check correctness (not timed)
       // for (int i = 0; i < Categories_ind_size; i++) { // Sparse version
       //   Index idx = Categories_ind[i];
-      for (Index idx = 0; idx < numFeatures; idx++) { // Dense version
-        if (Categories_val[idx] != TrueCategories[idx]) {
-            // printArray("True: ", TrueCategories, 5);
-            // printArray("Categores: ", Categories, 5);
-            std::cout << "ERROR: Mismatch at " << idx << ": (" << Categories_val[idx] << " vs " << TrueCategories[idx] << ")" << std::endl;
-            return GrB_PANIC;
-        }
-      }
+      BOOST_ASSERT_LIST(TrueCategories, Categories_val, numFeatures);
     }
 
     //--------------------------------------------------------------------------

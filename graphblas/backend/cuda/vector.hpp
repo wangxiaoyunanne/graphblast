@@ -79,7 +79,6 @@ class Vector {
   SparseVector<T> sparse_;
   DenseVector<T>  dense_;
   Storage         vec_type_;
-
   float           ratio_;
 };
 
@@ -436,15 +435,9 @@ Info Vector<T>::swap(Vector* rhs) {  // NOLINT(build/include_what_you_use)
   if (vec_type_ == GrB_SPARSE) CHECK(sparse_.swap(&rhs->sparse_));
   else if (vec_type_ == GrB_DENSE) CHECK(dense_.swap(&rhs->dense_));
 
-  Index temp_nsize = nsize_;
-  Index temp_nvals = nvals_;
-  float temp_ratio = ratio_;
-  nsize_ = rhs->nsize_;
-  nvals_ = rhs->nvals_;
-  ratio_ = rhs->ratio_;
-  rhs->nsize_ = temp_nsize;
-  rhs->nvals_ = temp_nvals;
-  rhs->ratio_ = temp_ratio;
+  std::swap(nsize_, rhs->nsize_);
+  std::swap(nvals_, rhs->nvals_);
+  std::swap(ratio_, rhs->ratio_);
 
   return GrB_SUCCESS;
 }

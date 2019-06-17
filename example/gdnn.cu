@@ -42,7 +42,6 @@ int main(int argc, char** argv) {
 
   // Parse arguments
   bool debug;
-  bool transpose;
   bool mtxinfo;
   int  directed;
   char* dat_name;
@@ -60,7 +59,6 @@ int main(int argc, char** argv) {
   // Parse args
   parseArgs(argc, argv, &vm);
   debug     = vm["debug"    ].as<bool>();
-  transpose = vm["transpose"].as<bool>();
   mtxinfo   = vm["mtxinfo"  ].as<bool>();
   directed  = vm["directed" ].as<int>();
 
@@ -127,8 +125,6 @@ int main(int argc, char** argv) {
    */
   graphblas::Descriptor desc;
   CHECK(desc.loadArgs(vm));
-  if (transpose)
-    CHECK(desc.toggle(graphblas::GrB_INP1));
 
   // // Cpu BFS
   // CpuTimer dnn_cpu;

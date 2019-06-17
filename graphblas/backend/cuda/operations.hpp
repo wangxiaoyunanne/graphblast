@@ -37,7 +37,7 @@ Info mxm(Matrix<c>*       C,
 
   if (A_mat_type == GrB_SPARSE && B_mat_type == GrB_SPARSE) {
     CHECK(C->setStorage(GrB_SPARSE));
-    CHECK(cusparse_spgemm2(&C->sparse_, mask, accum, op, &A->sparse_,
+    CHECK(cusparse_spgemm(&C->sparse_, mask, accum, op, &A->sparse_,
         &B->sparse_, desc));
   } else {
     std::cout << "Error: SpMM and GEMM not implemented yet!\n";
@@ -60,8 +60,8 @@ Info mxm(Matrix<c>*       C,
   }
 
   if (desc->debug()) {
-    std::cout << "===End mxm===\n";
     CHECK(C->print());
+    std::cout << "===End mxm===\n";
   }
   return GrB_SUCCESS;
 }
@@ -190,8 +190,8 @@ Info vxm(Vector<W>*       w,
   CHECK(desc->toggle(GrB_INP1));
 
   if (desc->debug()) {
-    std::cout << "===End vxm===\n";
     CHECK(w->print());
+    std::cout << "===End vxm===\n";
   }
   return GrB_SUCCESS;
 }
@@ -305,8 +305,8 @@ Info mxv(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End mxv===\n";
     CHECK(w->print());
+    std::cout << "===End mxv===\n";
   }
   return GrB_SUCCESS;
 }
@@ -381,8 +381,8 @@ Info eWiseMult(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End eWiseMult===\n";
     CHECK(w->print());
+    std::cout << "===End eWiseMult===\n";
   }
   return GrB_SUCCESS;
 }
@@ -593,8 +593,8 @@ Info eWiseAdd(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End eWiseAdd===\n";
     CHECK(w->print());
+    std::cout << "===End eWiseAdd===\n";
   }
   return GrB_SUCCESS;
 }
@@ -658,8 +658,8 @@ Info eWiseAdd(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End eWiseAdd===\n";
     CHECK(w->print());
+    std::cout << "===End eWiseAdd===\n";
   }
   return GrB_SUCCESS;
 }
@@ -788,8 +788,8 @@ Info assign(Vector<W>*                w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End assign===\n";
     CHECK(w->print());
+    std::cout << "===End assign===\n";
   }
   return GrB_SUCCESS;
 }
@@ -839,8 +839,8 @@ Info apply(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End apply===\n";
     CHECK(w->print());
+    std::cout << "===End apply===\n";
   }
   return GrB_SUCCESS;
 }
@@ -876,8 +876,8 @@ Info apply(Matrix<c>*       C,
   }
 
   if (desc->debug()) {
-    std::cout << "===End apply===\n";
     CHECK(C->print());
+    std::cout << "===End apply===\n";
   }
   return GrB_SUCCESS;
 }
@@ -914,8 +914,8 @@ Info reduce(Vector<W>*       w,
   }
 
   if (desc->debug()) {
-    std::cout << "===End reduce===\n";
     CHECK(w->print());
+    std::cout << "===End reduce===\n";
   }
   return GrB_SUCCESS;
 }
@@ -949,8 +949,8 @@ Info reduce(T*               val,
     return GrB_UNINITIALIZED_OBJECT;
 
   if (desc->debug()) {
-    std::cout << "===End reduce===\n";
     std::cout << "Output: " << *val << std::endl;
+    std::cout << "===End reduce===\n";
   }
   return GrB_SUCCESS;
 }
@@ -984,8 +984,8 @@ Info reduce(T*               val,
   }
 
   if (desc->debug()) {
-    std::cout << "===End reduce===\n";
     std::cout << "Output: " << *val << std::endl;
+    std::cout << "===End reduce===\n";
   }
 }
 
@@ -1064,8 +1064,8 @@ Info scatter(Vector<W>*       w,
     return GrB_UNINITIALIZED_OBJECT;
 
   if (desc->debug()) {
-    std::cout << "===End scatter===\n";
     CHECK(w->print());
+    std::cout << "===End scatter===\n";
   }
   return GrB_SUCCESS;
 }
@@ -1082,8 +1082,8 @@ Info graphColor(Vector<W>*       w,
   cusparse_color(&w->dense_, &A->sparse_, desc);
 
   if (desc->debug()) {
-    std::cout << "===End cuSPARSE graph color===\n";
     CHECK(w->print());
+    std::cout << "===End cuSPARSE graph color===\n";
   }
   return GrB_SUCCESS;
 }
@@ -1212,8 +1212,8 @@ Info applyVxm(Vector<W>*       w,
   CHECK(desc->toggle(GrB_INP1));
 
   if (desc->debug()) {
-    std::cout << "===End vxm===\n";
     CHECK(w->print());
+    std::cout << "===End vxm===\n";
   }
   return GrB_SUCCESS;
 }

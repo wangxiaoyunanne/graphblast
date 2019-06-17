@@ -68,6 +68,7 @@ class Matrix {
   Info resize(Index nrows, Index ncols);
   Info setStorage(Storage  mat_type);
   Info getStorage(Storage* mat_type) const;
+  Info swap(Matrix* rhs);
 
   template <typename U>
   Info fill(Index axis,
@@ -244,6 +245,12 @@ template <typename T>
 template <typename U>
 Info Matrix<T>::fillAscending(Index axis, Index nvals, U start) {
   return matrix_.fillAscending(axis, nvals, start);
+}
+
+template <typename T>
+Info Matrix<T>::swap(Matrix* rhs) {  // NOLINT(build/include_what_you_use)
+  if (rhs == NULL) return GrB_NULL_POINTER;
+  return matrix_.swap(&rhs->matrix_);
 }
 }  // namespace graphblas
 

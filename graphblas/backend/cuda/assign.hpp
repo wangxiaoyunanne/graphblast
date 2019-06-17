@@ -75,6 +75,8 @@ Info assignDense(DenseVector<W>*           w,
         assignDenseDenseMaskedKernel<false, true, true><<<NB, NT>>>(w->d_val_,
             w->nvals_, (mask->dense_).d_val_, accum, (W)val, indices_t,
             nindices);
+      if (desc->debug())
+        printDevice("mask_val", (mask->dense_).d_val_, mask->dense_.nvals_);
     } else if (mask_vec_type == GrB_SPARSE) {
       if (use_scmp)
         assignDenseSparseMaskedKernel<true, true, true><<<NB, NT>>>(
@@ -87,13 +89,13 @@ Info assignDense(DenseVector<W>*           w,
 
       if (desc->debug()) {
         printDevice("mask_ind", (mask->sparse_).d_ind_, mask->sparse_.nvals_);
+        printDevice("mask_val", (mask->sparse_).d_val_, mask->sparse_.nvals_);
       }
     } else {
       return GrB_UNINITIALIZED_OBJECT;
     }
 
     if (desc->debug()) {
-      printDevice("mask_val", (mask->sparse_).d_val_, mask->sparse_.nvals_);
       printDevice("w_val", w->d_val_, w->nvals_);
     }
   } else {

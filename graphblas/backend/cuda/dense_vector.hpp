@@ -406,25 +406,16 @@ Info DenseVector<T>::gpuToCpu(bool force_update) {
 
 template <typename T>
 Info DenseVector<T>::swap(DenseVector* rhs) {  // NOLINT(build/include_what_you_use)
-  // Change member scalars
-  Index temp_nvals = nvals_;
-  nvals_ = rhs->nvals_;
-  rhs->nvals_ = temp_nvals;
+  // Swap scalars
+  std::swap(nvals_, rhs->nvals_);
 
-  // Change CPU pointers
-  T*     temp_val_  = h_val_;
-  h_val_            = rhs->h_val_;
-  rhs->h_val_       = temp_val_;
+  // Swap CPU pointers
+  std::swap(h_val_, rhs->h_val_);
 
-  // Change GPU pointers
-  temp_val_         = d_val_;
-  d_val_            = rhs->d_val_;
-  rhs->d_val_       = temp_val_;
+  // Swap GPU pointers
+  std::swap(d_val_, rhs->d_val_);
 
-  bool temp_update  = need_update_;
-  need_update_      = rhs->need_update_;
-  rhs->need_update_ = temp_update;
-
+  std::swap(need_update_, rhs->need_update_);
   return GrB_SUCCESS;
 }
 }  // namespace backend

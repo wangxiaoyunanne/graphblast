@@ -382,34 +382,19 @@ Info SparseVector<T>::gpuToCpu(bool force_update) {
 
 template <typename T>
 Info SparseVector<T>::swap(SparseVector* rhs) {  // NOLINT(build/include_what_you_use)
-  // Change member scalars
-  Index temp_nsize  = nsize_;
-  Index temp_nvals  = nvals_;
-  nsize_            = rhs->nsize_;
-  nvals_            = rhs->nvals_;
-  rhs->nsize_       = temp_nsize;
-  rhs->nvals_       = temp_nvals;
+  // Swap scalars
+  std::swap(nsize_, rhs->nsize_);
+  std::swap(nvals_, rhs->nvals_);
 
-  // Change CPU pointers
-  Index* temp_ind_  = h_ind_;
-  T*     temp_val_  = h_val_;
-  h_ind_            = rhs->h_ind_;
-  h_val_            = rhs->h_val_;
-  rhs->h_ind_       = temp_ind_;
-  rhs->h_val_       = temp_val_;
+  // Swap CPU pointers
+  std::swap(h_ind_, rhs->h_ind_);
+  std::swap(h_val_, rhs->h_val_);
 
-  // Change GPU pointers
-  temp_ind_         = d_ind_;
-  temp_val_         = d_val_;
-  d_ind_            = rhs->d_ind_;
-  d_val_            = rhs->d_val_;
-  rhs->d_ind_       = temp_ind_;
-  rhs->d_val_       = temp_val_;
+  // Swap GPU pointers
+  std::swap(d_ind_, rhs->d_ind_);
+  std::swap(d_val_, rhs->d_val_);
 
-  bool temp_update  = need_update_;
-  need_update_      = rhs->need_update_;
-  rhs->need_update_ = temp_update;
-
+  std::swap(need_update_, rhs->need_update_);
   return GrB_SUCCESS;
 }
 }  // namespace backend

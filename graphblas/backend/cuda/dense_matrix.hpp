@@ -59,6 +59,7 @@ class DenseMatrix {
   Info fill(Index axis, Index nvals, U start);
   template <typename U>
   Info fillAscending(Index axis, Index nvals, U start);
+  Info swap(DenseMatrix* rhs);
 
  private:
   Info allocate();
@@ -239,6 +240,23 @@ template <typename U>
 Info DenseMatrix<T>::fillAscending(Index axis, Index nvals, U start) {
   std::cout << "Dense Matrix fillAscending\n";
   std::cout << "Error: Feature not implemented yet!\n";
+  return GrB_SUCCESS;
+}
+
+template <typename T>
+Info DenseMatrix<T>::swap(DenseMatrix* rhs) {
+  // Swap scalars
+  std::swap(nrows_, rhs->nrows_);
+  std::swap(ncols_, rhs->ncols_);
+  std::swap(nvals_, rhs->nvals_);
+
+  // Swap CPU pointers
+  std::swap(h_denseVal_, rhs->h_denseVal_);
+  
+  // Swap GPU pointers
+  std::swap(d_denseVal_, rhs->d_denseVal_);
+
+  std::swap(need_update_, rhs->need_update_);
   return GrB_SUCCESS;
 }
 

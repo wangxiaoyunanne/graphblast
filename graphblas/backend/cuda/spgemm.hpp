@@ -72,25 +72,17 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
   cusparseSetMatIndexBase(descr, CUSPARSE_INDEX_BASE_ZERO);
   cusparseStatus_t status;
 
-  int baseC;
+  int baseC = 0;
   int *nnzTotalDevHostPtr = &(C_nvals);
-  if (C->d_csrRowPtr_ == NULL) {
-    CUDA_CALL( cudaMalloc( &C->d_csrRowPtr_, (A_nrows+1)*sizeof(Index) ));
-  }
-  /*else
-  {
-    CUDA_CALL( cudaFree(&C->d_csrRowPtr_) );
-    CUDA_CALL( cudaMalloc( &C->d_csrRowPtr_, (A_nrows+1)*sizeof(Index) ));
-  }*/
+  C->allocate();
+  /*if (C->d_csrRowPtr_ != NULL)
+    CUDA_CALL(cudaFree(C->d_csrRowPtr_));
+  CUDA_CALL(cudaMalloc(&C->d_csrRowPtr_, (C_nrows+1)*sizeof(Index)));
 
-  if (C->h_csrRowPtr_ == NULL)
-    C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((A_nrows+1)*
-        sizeof(Index)));
-  /*else
-  {
-    free( C->h_csrRowPtr_ );
-    C->h_csrRowPtr_ = (Index*)malloc((A_nrows+1)*sizeof(Index));
-  }*/
+  if (C->h_csrRowPtr_ != NULL)
+    free(C->h_csrRowPtr_);
+  C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((C_nrows+1)*
+      sizeof(Index)));*/
 
   // Analyze
   status = cusparseXcsrgemmNnz(handle,
@@ -129,16 +121,19 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
   if (nnzTotalDevHostPtr != NULL) {
     C_nvals = *nnzTotalDevHostPtr;
   } else {
-    CUDA_CALL(cudaMemcpy( &C_nvals, C->d_csrRowPtr_+A_nrows, sizeof(Index),
+    CUDA_CALL(cudaMemcpy(&C_nvals, C->d_csrRowPtr_+C_nrows, sizeof(int),
         cudaMemcpyDeviceToHost));
-    CUDA_CALL(cudaMemcpy( &baseC, C->d_csrRowPtr_, sizeof(Index),
+    CUDA_CALL(cudaMemcpy(&baseC, C->d_csrRowPtr_, sizeof(int),
         cudaMemcpyDeviceToHost));
     C_nvals -= baseC;
   }
 
+  if (desc->debug()) {
+    std::cout << C_nvals << " nnz in mxm!\n";
+  }
   if (C_nvals > C->ncapacity_) {
     if (desc->debug())
-      std::cout << "Increasing matrix C: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
+      std::cout << "Increasing matrix C size: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
     C->ncapacity_ = C_nvals*C->kresize_ratio_;
     if (C->d_csrColInd_ != NULL) {
       CUDA_CALL(cudaFree(C->d_csrColInd_));
@@ -154,6 +149,8 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
     C->h_csrColInd_ = reinterpret_cast<Index*>(malloc(C->ncapacity_*sizeof(
         Index)));
     C->h_csrVal_    = reinterpret_cast<T*>(malloc(C->ncapacity_*sizeof(T)));
+  } else if (desc->debug()) {
+      std::cout << "Keeping matrix C size: " << C->ncapacity_ << " < " << C_nvals << std::endl;
   }
 
   // Compute
@@ -190,6 +187,7 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
       std::cout << "Error: Matrix type not supported.\n";
   }
 
+  CUDA_CALL(cudaDeviceSynchronize());
   C->need_update_ = true;  // Set flag that we need to copy data from GPU
   C->nvals_ = C_nvals;     // Update nnz count for C
   return GrB_SUCCESS;
@@ -247,23 +245,14 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
 
   int baseC;
   int *nnzTotalDevHostPtr = &(C_nvals);
-  if (C->d_csrRowPtr_ == NULL) {
-    CUDA_CALL(cudaMalloc(&C->d_csrRowPtr_, (A_nrows+1)*sizeof(Index)));
-  }
-  /*else
-  {
-    CUDA_CALL( cudaFree(&C.d_csrRowPtr_) );
-    CUDA_CALL( cudaMalloc( &C.d_csrRowPtr_, (A_nrows+1)*sizeof(Index) ));
-  }*/
+  if (C->d_csrRowPtr_ != NULL)
+    CUDA_CALL(cudaFree(C->d_csrRowPtr_));
+  CUDA_CALL(cudaMalloc(&C->d_csrRowPtr_, (A_nrows+1)*sizeof(Index)));
 
-  if (C->h_csrRowPtr_ == NULL)
-    C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((A_nrows+1)*sizeof(
-        Index)));
-  /*else
-  {
-    free( C.h_csrRowPtr_ );
-    C.h_csrRowPtr_ = (Index*)malloc((A_nrows+1)*sizeof(Index));
-  }*/
+  if (C->h_csrRowPtr_ != NULL)
+    free(C->h_csrRowPtr_);
+  C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((A_nrows+1)*sizeof(
+      Index)));
 
   // Step 1: create an opaque structure
   cusparseCreateCsrgemm2Info(&info);
@@ -342,16 +331,19 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
   if (nnzTotalDevHostPtr != NULL) {
     C_nvals = *nnzTotalDevHostPtr;
   } else {
-    CUDA_CALL(cudaMemcpy(&(C_nvals), C->d_csrRowPtr_+A_nrows, sizeof(Index),
+    CUDA_CALL(cudaMemcpy(&C_nvals, C->d_csrRowPtr_+A_nrows, sizeof(int),
         cudaMemcpyDeviceToHost));
-    CUDA_CALL(cudaMemcpy(&(baseC), C->d_csrRowPtr_, sizeof(Index),
+    CUDA_CALL(cudaMemcpy(&baseC, C->d_csrRowPtr_, sizeof(int),
         cudaMemcpyDeviceToHost));
     C_nvals -= baseC;
   }
 
+  if (desc->debug()) {
+    std::cout << C_nvals << " nnz in mxm!\n";
+  }
   if (C_nvals > C->ncapacity_) {
     if (desc->debug())
-      std::cout << "Increasing matrix C: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
+      std::cout << "Increasing matrix C size: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
     if (C->d_csrColInd_ != NULL) {
       CUDA_CALL(cudaFree(C->d_csrColInd_));
       CUDA_CALL(cudaFree(C->d_csrVal_));
@@ -367,6 +359,8 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
     C->h_csrVal_    = reinterpret_cast<T*>(malloc(C_nvals*sizeof(T)));
 
     C->ncapacity_ = C_nvals;
+  } else if (desc->debug()) {
+      std::cout << "Keeping matrix C size: " << C->ncapacity_ << " < " << C_nvals << std::endl;
   }
 
   // Compute
@@ -407,6 +401,7 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
 
   C->need_update_ = true;  // Set flag that we need to copy data from GPU
   C->nvals_ = C_nvals;     // Update nnz count for C
+  CUDA_CALL(cudaDeviceSynchronize());
   if (desc->debug())
     std::cout << C_nvals << " nonzeroes!\n";
   return GrB_SUCCESS;

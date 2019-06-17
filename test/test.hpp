@@ -50,44 +50,56 @@ void BOOST_ASSERT_LIST( const std::vector<T>& lhs,
 }
 
 template <typename T, typename S, typename L>
-void BOOST_ASSERT_LIST( const std::vector<T>& lhs,
-                        const std::vector<S>& rhs, 
-                        L length=5 )
-{
-  length = std::min( lhs.size(), rhs.size() );
-  for( L i=0; i<length; i++ )
-  {
-    //std::cout << lhs[i] << "==" << rhs[i] << std::endl;
-    BOOST_ASSERT( lhs[i] == rhs[i] );
-  }
-}
-
-template <typename T, typename S, typename L>
-void BOOST_ASSERT_LIST( const T* lhs, 
-                        const std::vector<S>& rhs,
-                        L length=5 )
-{
+void BOOST_ASSERT_LIST(const std::vector<T>& lhs,
+                       const std::vector<S>& rhs, 
+                       L                     length = 5) {
   int flag = 0;
-  for( L i=0; i<length; i++ )
-  {
-    if( lhs[i]!=rhs[i] && flag==0 )
-    {
+  for (L i = 0; i < length; i++) {
+    if (lhs[i] != rhs[i] && flag == 0) {
       std::cout << "\nINCORRECT: [" << (unsigned long) i << "]: ";
       std::cout << rhs[i] << " != " << lhs[i] << "\nresult[...";
 
-      for( size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++ )
+      for (size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++)
         std::cout << rhs[j] << ", ";
       std::cout << "...]\nlhs[...";
 
-      for( size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++ )
+      for (size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++)
         std::cout << lhs[j] << ", ";
       std::cout << "...]";
     }
-    if( lhs[i]!=rhs[i] )
+    if (lhs[i] != rhs[i])
       flag++;
   }
   std::cout << "\n";
-  if( flag==0 )
+  if (flag == 0)
+    std::cout << "CORRECT\n";
+  else
+    std::cout << flag << " errors occurred.\n";
+}
+
+template <typename T, typename S, typename L>
+void BOOST_ASSERT_LIST(const T*              lhs, 
+                       const std::vector<S>& rhs,
+                       L                     length = 5) {
+  int flag = 0;
+  for (L i = 0; i < length; i++) {
+    if (lhs[i] != rhs[i] && flag == 0) {
+      std::cout << "\nINCORRECT: [" << (unsigned long) i << "]: ";
+      std::cout << rhs[i] << " != " << lhs[i] << "\nresult[...";
+
+      for (size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++)
+        std::cout << rhs[j] << ", ";
+      std::cout << "...]\nlhs[...";
+
+      for (size_t j = (i >= 5) ? i - 5 : 0; (j < i + 5) && (j < length); j++)
+        std::cout << lhs[j] << ", ";
+      std::cout << "...]";
+    }
+    if (lhs[i] != rhs[i])
+      flag++;
+  }
+  std::cout << "\n";
+  if (flag == 0)
     std::cout << "CORRECT\n";
   else
     std::cout << flag << " errors occurred.\n";
