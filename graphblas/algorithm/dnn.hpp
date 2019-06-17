@@ -122,18 +122,22 @@ Info dnn
         // bias VECTOR
         std::cout << "********** Plus bias" << std::endl;
         CHECK(desc->toggle(graphblas::GrB_INP1));
-        eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(), &Y, &Bias, desc);
+        eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(),
+            &Y, &Bias, desc);
         CHECK(desc->toggle(graphblas::GrB_INP1));
         // CHECK(Bias.getStorage(&s));
         // std::cout << "Bias storage: " << as_integer(s) << std::endl;
 
         // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
         std::cout << "********** ReLU" << std::endl;
-        eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(), &Y, 0.0, desc);
+        eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(),
+            &Y, 0.f, desc);
         // CHECK(Y.getStorage(&s));
         // std::cout << "Y storage after ReLU: " << as_integer(s) << std::endl;
 
-        // Optional: ReLU clipping 
+        // Optional: clipping of values above 32 
+        eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),
+            &Y, 32.f, desc);
     }
     gpu_infer.Stop();
     gpu_infer_time += gpu_infer.ElapsedMillis();

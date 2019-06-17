@@ -201,6 +201,7 @@ REGISTER_SEMIRING(MinimumMultipliesSemiring, MinimumMonoid, multiplies)
 REGISTER_SEMIRING(MultipliesMultipliesSemiring, MultipliesMonoid, multiplies)
 REGISTER_SEMIRING(NotEqualToPlusSemiring, NotEqualToMonoid, plus)
 REGISTER_SEMIRING(PlusMaximumSemiring, PlusMonoid, maximum)
+REGISTER_SEMIRING(PlusMinimumSemiring, PlusMonoid, minimum)
 
 // AddOp and MulOp extraction provided by Peter Zhang
 template <typename SemiringT>

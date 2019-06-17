@@ -41,7 +41,7 @@ std::pair<int, int> diameter(Vector<float>*       v,
       vxm<float, float, float, float>(&q2, v, GrB_NULL,
           LogicalOrAndSemiring<float>(), &q1, A, desc);
       desc->toggle(GrB_MASK);
-      q2.swap(&q1);
+      CHECK(q2.swap(&q1));
       reduce<float, float>(&succ, GrB_NULL, PlusMonoid<float>(), &q1, desc);
       iter++;
     } while (succ > 0);
