@@ -202,6 +202,7 @@ const T DenseMatrix<T>::operator[](Index ind) {
 
 template <typename T>
 Info DenseMatrix<T>::print(bool force_update) {
+  std::cout << nrows_ << " x " << nrows_ << ": " << nrows_*ncols_ << " nnz\n";
   CHECK(gpuToCpu(force_update));
   printArray("denseVal", h_denseVal_, std::min(nvals_, 40));
   printDense();

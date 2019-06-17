@@ -478,6 +478,7 @@ const T SparseMatrix<T>::operator[](Index ind) {
 
 template <typename T>
 Info SparseMatrix<T>::print(bool force_update) {
+  std::cout << nrows_ << " x " << ncols_ << ": " << nvals_ << " nnz\n";
   CHECK(gpuToCpu(force_update));
   printArray("csrColInd", h_csrColInd_, std::min(nvals_, 40));
   printArray("csrRowPtr", h_csrRowPtr_, std::min(nrows_+1, 40));
@@ -630,26 +631,27 @@ Info SparseMatrix<T>::allocateCpu() {
   if (nvals_ > 0 && h_csrVal_ == NULL)
     h_csrVal_    = reinterpret_cast<T*>(malloc(ncapacity_*sizeof(T)));
 
-  if (ncols_ > 0 && h_cscColPtr_ == NULL) {
-    h_cscColPtr_ = reinterpret_cast<Index*>(malloc((ncols_+1)*sizeof(Index)));
+  if (format_ == GrB_SPARSE_MATRIX_CSRCSC) {
+    if (ncols_ > 0 && h_cscColPtr_ == NULL) {
+      h_cscColPtr_ = reinterpret_cast<Index*>(malloc((ncols_+1)*sizeof(Index)));
+      std::cout << "Allocate " << ncols_ + 1 << std::endl;
+    } else {
+      std::cout << "Do not allocate " << ncols_ << " " << h_cscColPtr_ << "\n";
+    }
 
-    std::cout << "Allocate " << ncols_ + 1 << std::endl;
-  } else {
-    std::cout << "Do not allocate " << ncols_ << " " << h_cscColPtr_ << std::endl;
-  }
+    if (nvals_ > 0 && h_cscRowInd_ == NULL) {
+      h_cscRowInd_ = reinterpret_cast<Index*>(malloc(ncapacity_*sizeof(Index)));
+      std::cout << "Allocate " << ncapacity_ << std::endl;
+    } else {
+      std::cout << "Do not allocate " << nvals_ << " " << h_cscRowInd_ << "\n";
+    }
 
-  if (nvals_ > 0 && h_cscRowInd_ == NULL) {
-    h_cscRowInd_ = reinterpret_cast<Index*>(malloc(ncapacity_*sizeof(Index)));
-    std::cout << "Allocate " << ncapacity_ << std::endl;
-  } else {
-    std::cout << "Do not allocate " << nvals_ << " " << h_cscRowInd_ << std::endl;
-  }
-
-  if (nvals_ > 0 && h_cscVal_ == NULL) {
-    h_cscVal_    = reinterpret_cast<T*>(malloc(ncapacity_*sizeof(T)));
-    std::cout << "Allocate " << ncapacity_ << std::endl;
-  } else {
-    std::cout << "Do not allocate " << nvals_ << " " << h_cscVal_ << std::endl;
+    if (nvals_ > 0 && h_cscVal_ == NULL) {
+      h_cscVal_    = reinterpret_cast<T*>(malloc(ncapacity_*sizeof(T)));
+      std::cout << "Allocate " << ncapacity_ << std::endl;
+    } else {
+      std::cout << "Do not allocate " << nvals_ << " " << h_cscVal_ << "\n";
+    }
   }
 
   // TODO(@ctcyang): does not need to be so strict since mxm may need to
