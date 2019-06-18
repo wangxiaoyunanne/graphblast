@@ -582,14 +582,14 @@ Info eWiseMultRowInner(SparseMatrix<c>*       C,
 
     // Assign values for CSR value array
     eWiseMultCSCKernel<<<NB, NT>>>(C->d_csrVal_, NULL, extractMul(op),
-        A->d_csrRowPtr_, A->d_csrColInd_, A->d_csrVal_, A_ncols, B->d_val_);
+        A->d_csrRowPtr_, A->d_csrColInd_, A->d_csrVal_, A_nrows, B->d_val_);
 
     NB.x = (A_ncols + nt - 1) / nt * 32;
 
     // Assign values for CSC value array
     if (A->format_ == GrB_SPARSE_MATRIX_CSRCSC)
       eWiseMultCSRKernel<<<NB, NT>>>(C->d_cscVal_, NULL, extractMul(op),
-          A->d_cscColPtr_, A->d_cscVal_, A_nrows, B->d_val_);
+          A->d_cscColPtr_, A->d_cscVal_, A_ncols, B->d_val_);
   }
   C->need_update_ = true;
 

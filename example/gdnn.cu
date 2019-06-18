@@ -20,7 +20,7 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
-  int nlayers = 10;
+  int nlayers = 120;
   int numNeurons = 1024;
   int numFeatures = 60000;
   float bias = -0.3f;
@@ -103,7 +103,10 @@ int main(int argc, char** argv) {
       // CHECK(Weights[layer].nvals(&nvals));
       if (debug)
         CHECK(Weights[layer].print());
-
+      
+      row_indices.clear();
+      col_indices.clear();
+      values.clear();
       // bias MATRIX
       // graphblas::Matrix<float> b(nrows, ncols);
       // CHECK(b.build(&row_idx_b, &col_idx_b, &diag_val_b, numNeurons, GrB_NULL, dat_name));

@@ -890,8 +890,11 @@ Info reduce(Vector<W>*       w,
             MonoidT          op,
             const Matrix<a>* A,
             Descriptor*      desc) {
+  Matrix<a>* A_t = const_cast<Matrix<a>*>(A);
+
   if (desc->debug()) {
     std::cout << "===Begin reduce===\n";
+    CHECK(A_t->print());
   }
 
   // Get storage:

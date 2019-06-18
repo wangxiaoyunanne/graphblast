@@ -112,6 +112,8 @@ Info reduceInner(DenseVector<W>*        w,
                  Descriptor*            desc) {
   // TODO(@ctcyang): Structure-only optimization uses CSR row pointers
   if (desc->struconly()) {
+    std::cout << "Error: Sparse reduce matrix-to-vector for structure only\n";
+    std::cout << "not implemented yet!\n";
   } else {
     // Cannot use mgpu, because BinaryOps and Monoids do not satisfy
     // first_argument_type requirement for mgpu ops
@@ -125,13 +127,9 @@ Info reduceInner(DenseVector<W>*        w,
     if (A->nrows_ == 0)
       return GrB_INVALID_OBJECT;
     
-    if (!desc->split())
-      CUDA_CALL(cub::DeviceSegmentedReduce::Reduce(NULL, temp_storage_bytes,
-          A->d_csrVal_, w->d_val_, A->nrows_, A->d_csrRowPtr_,
-          A->d_csrRowPtr_+1, op, op.identity()));
-    else
-      temp_storage_bytes = desc->d_temp_size_;
+    temp_storage_bytes = desc->d_temp_size_;
     desc->resize(temp_storage_bytes, "temp");
+
     CUDA_CALL(cub::DeviceSegmentedReduce::Reduce(desc->d_temp_,
         temp_storage_bytes, A->d_csrVal_, w->d_val_, A->nrows_,
         A->d_csrRowPtr_, A->d_csrRowPtr_+1, op, op.identity()));
