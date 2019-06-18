@@ -406,6 +406,10 @@ int readMtx(const char*                    fname,
       values->clear();
     }
   } else {
+    row_indices->clear();
+    col_indices->clear();
+    values->clear();
+
     if (mm_is_integer(matcode))
       readTuples<T, int>(row_indices, col_indices, values, *nvals, f);
     else if (mm_is_real(matcode))

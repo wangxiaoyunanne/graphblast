@@ -103,10 +103,6 @@ int main(int argc, char** argv) {
       // CHECK(Weights[layer].nvals(&nvals));
       if (debug)
         CHECK(Weights[layer].print());
-      
-      row_indices.clear();
-      col_indices.clear();
-      values.clear();
       // bias MATRIX
       // graphblas::Matrix<float> b(nrows, ncols);
       // CHECK(b.build(&row_idx_b, &col_idx_b, &diag_val_b, numNeurons, GrB_NULL, dat_name));
