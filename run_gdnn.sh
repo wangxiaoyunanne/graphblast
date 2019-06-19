@@ -1,8 +1,8 @@
-# # Mario
-# datadir=/home/wangxy/GraphChallenge/code/data
+# Mario
+datadir=/data-3/GraphChallenge19-DNN/data
 
-# Luigi
-datadir=/data-2/GraphChallenge19
+# # Luigi
+# datadir=/data-2/GraphChallenge19
 
 export GRB_SPARSE_MATRIX_FORMAT=1
 export GRB_UTIL_REMOVE_SELFLOOP=0
