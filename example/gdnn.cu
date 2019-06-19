@@ -20,6 +20,14 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
+    // #define NMAXLAYERS 3
+    // int maxLayers [NMAXLAYERS] = { 120, 480, 1920 } ;
+
+    // #define NMAXNEURONS 4
+    // int Nneurons [NMAXNEURONS] = { 1024, 4096, 16384, 65536 } ;
+    // double neuralNetBias [NMAXNEURONS] = { -0.3, -0.35, -0.4, -0.45 } ;
+
+
   int nlayers = 120;
   int numNeurons = 1024;
   int numFeatures = 60000;

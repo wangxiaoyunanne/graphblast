@@ -14,7 +14,7 @@ namespace algorithm {
 
 //--------------------------------------------------------------------------
 // numNeurons = nrows = ncols
-// numNeurons: 1024..., numLayers: 120..., numFeatures: 60000
+// numNeurons: 1024..., numLayers: 120..., numFeatures: 65536
 
 // W: vector of Matrix<T>, size (nlayers, numNeurons, numNeurons)
 
@@ -165,8 +165,6 @@ Info dnn (
     std::cout << "Check time: " << gpu_check_time << std::endl;
 
     // Check correctness (not timed)
-    // for (int i = 0; i < Categories_ind_size; i++) { // Sparse version
-    //   Index idx = Categories_ind[i];
     BOOST_ASSERT_LIST(TrueCategories, Categories_val, numFeatures);
   }
 
