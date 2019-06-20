@@ -35,10 +35,17 @@ Info mxm(Matrix<c>*       C,
   CHECK(A->getStorage(&A_mat_type));
   CHECK(B->getStorage(&B_mat_type));
 
+  MxmCusparseMode cusparse_mode = getEnv("GRB_MXM_CUSPARSE_MODE",
+      GrB_CUSPARSE_ONE);
+
   if (A_mat_type == GrB_SPARSE && B_mat_type == GrB_SPARSE) {
     CHECK(C->setStorage(GrB_SPARSE));
-    CHECK(cusparse_spgemm(&C->sparse_, mask, accum, op, &A->sparse_,
-        &B->sparse_, desc));
+    if (cusparse_mode == GrB_CUSPARSE_ONE)
+      CHECK(cusparse_spgemm(&C->sparse_, mask, accum, op, &A->sparse_,
+          &B->sparse_, desc));
+    else
+      CHECK(cusparse_spgemm2(&C->sparse_, mask, accum, op, &A->sparse_,
+          &B->sparse_, desc));
   } else {
     std::cout << "Error: SpMM and GEMM not implemented yet!\n";
     /*CHECK( C->setStorage( GrB_DENSE ) );

@@ -136,36 +136,4 @@ void BOOST_ASSERT_LIST_FLOAT( const T* lhs,
   else
     std::cout << flag << " errors occured.\n";
 }
-
-template <typename T>
-void check( const graphblas::backend::SparseMatrix<T>& A )
-{
-  std::cout << "Begin check:\n";
-  //printArray( "rowptr", h_csrRowPtr_ );
-  //printArray( "colind", h_csrColInd_+23 );
-  // Check csrRowPtr is monotonically increasing
-  for( graphblas::Index row=0; row<A.nrows_; row++ )
-  {
-    //std::cout << "Comparing " << A.h_csrRowPtr_[row+1] << " >= " << A.h_csrRowPtr_[row] << std::endl;
-    BOOST_ASSERT( A.h_csrRowPtr_[row+1]>=A.h_csrRowPtr_[row] );
-  }
-
-  // Check that: 1) there are no -1's in ColInd
-  //             2) monotonically increasing
-  for( graphblas::Index row=0; row<A.nrows_; row++ )
-  {
-    graphblas::Index row_start = A.h_csrRowPtr_[row];
-    graphblas::Index row_end   = A.h_csrRowPtr_[row+1];
-    //graphblas::Index row_end   = row_start+A.h_rowLength_[row];
-    //std::cout << row << " ";
-    //printArray( "colind", h_csrColInd_+row_start, h_rowLength_[row] );
-    for( graphblas::Index col=row_start; col<row_end-1; col++ )
-    {
-      //std::cout << "Comparing " << A.h_csrColInd_[col+1] << " > " << A.h_csrColInd_[col] << std::endl;
-      BOOST_ASSERT( A.h_csrColInd_[col]!=-1 );
-      BOOST_ASSERT( A.h_csrColInd_[col+1]>A.h_csrColInd_[col] );
-    }
-  }
-}
-
 #endif  // GRB_TEST_HPP

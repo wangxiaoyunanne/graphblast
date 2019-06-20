@@ -93,6 +93,7 @@ class SparseMatrix {
   template <typename U>
   Info fillAscending(Index axis, Index nvals, U start);
   Info swap(SparseMatrix* rhs);
+  Info rebuild(T identity, Descriptor* desc);
 
  private:
   Info allocateCpu();
@@ -103,8 +104,8 @@ class SparseMatrix {
   Info printCSC(const char* str);
   Info cpuToGpu();
   Info gpuToCpu(bool force_update = false);
-
   Info syncCpu();   // synchronizes CSR and CSC representations
+  Info validate();  // validates CSR structure on CPU
 
  private:
   const T kcap_ratio_    = 1.2f;  // Note: nasty bug if this is set to 1.f!
@@ -651,6 +652,88 @@ Info SparseMatrix<T>::swap(SparseMatrix* rhs) {  // NOLINK(build/include_what_yo
 }
 
 template <typename T>
+Info SparseMatrix<T>::rebuild(T identity, Descriptor* desc) {
+  // Get descriptor parameters for nthreads
+  Desc_value nt_mode;
+  CHECK(desc->get(GrB_NT, &nt_mode));
+  const int nt = static_cast<int>(nt_mode);
+  dim3 NT, NB;
+  NT.x = nt;
+  NT.y = 1;
+  NT.z = 1;
+  NB.x = (nvals_+nt-1)/nt;
+  NB.y = 1;
+  NB.z = 1;
+
+  if (desc->debug()) {
+    printDevice("d_csrColInd", d_csrColInd_, nvals_);
+    printDevice("d_csrVal",    d_csrVal_,    nvals_);
+  }
+
+  // Calculate memory consumption
+  // 1) d_flag: nvals_
+  // 2) temp_row: nrows_+1 use d_flag and d_csrRowPtr_ to compute segmented
+  //    reduction
+  // 3) d_scan: nvals_ (can overwrite temp_row)
+  // 4) temp_ind: nvals_ (can overwrite d_flag) use d_scan and d_csrColInd_
+  // 5) temp_val: nvals_ use d_scan and d_csrVal_
+
+  // Prune vals (0.f's) from matrix
+  desc->resize(3*nvals_*sizeof(Index), "buffer");
+  Index* d_flag = reinterpret_cast<Index*>(desc->d_buffer_);
+  Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+nvals_;
+  Index* temp_row = reinterpret_cast<Index*>(desc->d_buffer_)+nvals_;
+  Index* temp_ind = reinterpret_cast<Index*>(desc->d_buffer_);
+  T*     temp_val = reinterpret_cast<T*>(desc->d_buffer_)+2*nvals_;
+  Index temp_nvals = 0;
+  Index temp = 0;
+
+  // 1) Mark values we want to keep
+  updateFlagKernel<<<NB, NT>>>(d_flag, identity, d_csrVal_, nvals_);
+
+  // 2) Calculate segmented reduction
+  // Note: Must store total into d_csrRowPtr_+nrows_ or this will not result in
+  // valid CSR data structure
+  reduceMatrixCommon(d_scan, NULL, PlusMonoid<Index>(), d_csrRowPtr_, d_flag,
+      nrows_, desc);
+  mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(d_scan, nrows_, (Index) 0,
+      mgpu::plus<Index>(),  // NOLINT(build/include_what_you_use)
+      d_csrRowPtr_+nrows_, &temp, d_csrRowPtr_, temp_ind+2*nvals_,
+      *(desc->d_context_));
+
+  // 3) Compute scan (prefix-sum)
+  mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(d_flag, nvals_, (Index) 0,
+      mgpu::plus<Index>(),  // NOLINT(build/include_what_you_use)
+      reinterpret_cast<Index*>(0), &temp_nvals, d_scan, temp_ind+2*nvals_,
+      *(desc->d_context_));
+
+  if (desc->debug()) {
+    printDevice("d_flag", d_flag, nvals_);
+    printDevice("d_scan", d_scan, nvals_);
+    std::cout << "Pre-build size: " << nvals_ << std::endl;
+    std::cout << "Post-build size: " << temp_nvals << std::endl;
+    std::cout << "temp: " << temp << " == " << temp_nvals << ": temp_nvals\n";
+  }
+
+  // 4) Stream compact
+  streamCompactSparseKernel<<<NB, NT>>>(temp_ind, temp_val, d_scan, (T)identity,
+      d_csrColInd_, d_csrVal_, nvals_);
+  CUDA_CALL(cudaMemcpy(d_csrColInd_, temp_ind, temp_nvals*sizeof(Index),
+      cudaMemcpyDeviceToDevice));
+  CUDA_CALL(cudaMemcpy(d_csrVal_, temp_val, temp_nvals*sizeof(T),
+      cudaMemcpyDeviceToDevice));
+
+  nvals_ = temp_nvals;
+  if (desc->debug()) {
+    printDevice("d_csrColInd", d_csrColInd_, nvals_);
+    printDevice("d_csrVal",    d_csrVal_,    nvals_);
+    validate();
+  }
+  need_update_ = true;
+  return GrB_SUCCESS;
+}
+
+template <typename T>
 Info SparseMatrix<T>::allocateCpu() {
   // Allocate
   ncapacity_ = kcap_ratio_*nvals_;
@@ -854,6 +937,37 @@ Info SparseMatrix<T>::syncCpu() {
             h_csrRowPtr_, h_csrColInd_, h_csrVal_, nrows_, ncols_);
   else
     return GrB_INVALID_OBJECT;
+  return GrB_SUCCESS;
+}
+
+template <typename T>
+Info SparseMatrix<T>::validate() {
+  CHECK(gpuToCpu(true));
+  //printArray("rowptr", h_csrRowPtr_, 30, false);
+  //printArray("colind", h_csrColInd_, 1000, false);
+  // Check csrRowPtr is monotonically increasing
+  for (graphblas::Index row = 0; row < nrows_; row++) {
+    //std::cout << "Comparing " << h_csrRowPtr_[row+1] << " >= " << h_csrRowPtr_[row] << std::endl;
+    BOOST_ASSERT(h_csrRowPtr_[row+1] >= h_csrRowPtr_[row]);
+  }
+
+  // Check that: 1) there are no -1's in ColInd
+  //             2) monotonically increasing
+  for (graphblas::Index row = 0; row < nrows_; row++) {
+    graphblas::Index row_start = h_csrRowPtr_[row];
+    graphblas::Index row_end   = h_csrRowPtr_[row+1];
+    // graphblas::Index row_end = row_start+h_rowLength_[row];
+    // std::cout << row << " ";
+    // printArray("colind", h_csrColInd_+row_start, h_rowLength_[row]);
+    for (graphblas::Index col = row_start; col < row_end - 1; col++) {
+      if (h_csrColInd_[col+1] <= h_csrColInd_[col]) {
+        std::cout << "Error: on row " << row << " nnz " << col << ": ";
+        std::cout << h_csrColInd_[col+1] << " > " << h_csrColInd_[col] << "\n";
+      }
+      BOOST_ASSERT(h_csrColInd_[col] != -1);
+      BOOST_ASSERT(h_csrColInd_[col+1] > h_csrColInd_[col]);
+    }
+  }
   return GrB_SUCCESS;
 }
 }  // namespace backend

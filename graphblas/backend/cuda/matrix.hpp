@@ -74,6 +74,7 @@ class Matrix {
   template <typename U>
   Info fillAscending(Index axis, Index nvals, U start);
   Info swap(Matrix* rhs);
+  Info rebuild(T identity, Descriptor* desc);
 
  private:
   Index nrows_;
@@ -337,12 +338,9 @@ Info Matrix<T>::fillAscending(Index axis, Index nvals, U start) {
 
 // Assume both are of the same type to make things easier
 template <typename T>
-Info Matrix<T>::swap(Matrix* rhs) {  // NOLINT(build/include_what_you_use)
-  if (mat_type_ != rhs->mat_type_ || mat_type_ == GrB_UNKNOWN)  {
-    // std::cout << vec_type_ << " != " << rhs->vec_type_ << std::endl;
-    // std::cout << "Error: Format not equivalent!\n";
+Info Matrix<T>::swap(Matrix* rhs) {
+  if (mat_type_ != rhs->mat_type_ || mat_type_ == GrB_UNKNOWN)
     return GrB_INVALID_OBJECT;
-  }
 
   if (mat_type_ == GrB_SPARSE) CHECK(sparse_.swap(&rhs->sparse_));
   else if (mat_type_ == GrB_DENSE) CHECK(dense_.swap(&rhs->dense_));
@@ -350,6 +348,17 @@ Info Matrix<T>::swap(Matrix* rhs) {  // NOLINT(build/include_what_you_use)
   std::swap(nrows_, rhs->nrows_);
   std::swap(ncols_, rhs->ncols_);
   std::swap(nvals_, rhs->nvals_);
+  return GrB_SUCCESS;
+}
+
+template <typename T>
+Info Matrix<T>::rebuild(T identity, Descriptor* desc) {
+  if (mat_type_ == GrB_UNKNOWN)
+    return GrB_INVALID_OBJECT;
+
+  // If sparse: rebuild
+  // If dense: no op
+  if (mat_type_ == GrB_SPARSE) CHECK(sparse_.rebuild(identity, desc));
   return GrB_SUCCESS;
 }
 }  // namespace backend

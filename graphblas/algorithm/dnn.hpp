@@ -109,6 +109,7 @@ Info dnn (
         &Y, 0.f, desc);
     // CHECK(Y.getStorage(&s));
     // std::cout << "Y storage after ReLU: " << as_integer(s) << std::endl;
+    CHECK(Y.rebuild(0.f, desc));
 
     // Optional: clipping of values above 32 
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),
@@ -133,17 +134,6 @@ Info dnn (
     Storage s;
     // C = sum(Y)
     reduce<T, T, T>(&C, GrB_NULL, GrB_NULL, PlusMonoid<T>(), &Y, desc);
-    T* h_csrVal = reinterpret_cast<T*>(malloc(Y0_rows*Y0_cols*sizeof(T)));
-    T* h_val    = reinterpret_cast<T*>(malloc(numFeatures*sizeof(T)));
-    CUDA_CALL(cudaMemcpy(h_csrVal, Y.matrix_.sparse_.d_csrVal_, Y0_rows*Y0_cols*sizeof(T), cudaMemcpyDeviceToHost));
-    CUDA_CALL(cudaMemcpy(h_val, C.vector_.dense_.d_val_, numFeatures*sizeof(T), cudaMemcpyDeviceToHost));
-    for (int i = 0; i < Y0_rows; ++i) {
-      T val = 0;
-      for (int j = 0; j < Y0_cols; ++j)
-        val += h_csrVal[i*Y0_cols + j];
-      if (val != h_val[i])
-        std::cout << "Error: " << i << ": " << val << " != " << h_val[i] << std::endl;
-    }
     // CHECK(Y.getStorage(&s));
     // std::cout << "Y0 storage before: " << as_integer(s) << std::endl;
 

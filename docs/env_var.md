@@ -21,6 +21,10 @@ mization when doing mxv and vxm. This overrides mxvmode settings in Descriptor, 
   - Values: 0 (SIMPLE), 1 (TWC), 2 (MERGE) ```(default=2)```
   - The matrix-vector multiplication algorithm that is used. SIMPLE does not do any load-balancing, so it is good for road network graphs. TWC does thread-warp-block load-balancing by assigning a thread for the shortest rows, a warp for longer rows, and a block for the longest rows. MERGE does merge-path load-balancing (2-phase decomposition), so it is good for power law graphs.
 
+* GRB_MXM_CUSPARSE_MODE
+  - Values: 1, 2 ```default=1```
+  - The matrix-matrix multiplication algorithm that is used.
+
 ## Utility functions
 
 * GRB_UTIL_REMOVE_SELFLOOP

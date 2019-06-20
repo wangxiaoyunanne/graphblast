@@ -10,12 +10,12 @@ namespace backend {
 
 template <typename T, typename U,
           typename BinaryOpT, typename MonoidT>
-Info reduceCommon(T*          val,
-                  BinaryOpT   accum,
-                  MonoidT     op,
-                  U*          d_val,
-                  Index       nvals,
-                  Descriptor* desc) {
+Info reduceVectorCommon(T*          val,
+                        BinaryOpT   accum,
+                        MonoidT     op,
+                        U*          d_val,
+                        Index       nvals,
+                        Descriptor* desc) {
   // Nasty bug! Must point d_temp_val at desc->d_buffer_ only after it gets
   // possibly resized!
   CHECK(desc->resize(sizeof(T), "buffer"));
@@ -47,6 +47,40 @@ Info reduceCommon(T*          val,
   return GrB_SUCCESS;
 }
 
+template <typename T, typename U,
+          typename BinaryOpT, typename MonoidT>
+Info reduceMatrixCommon(T*          d_output_val,
+                        BinaryOpT   accum,
+                        MonoidT     op,
+                        Index*      d_row_ptr,
+                        U*          d_input_val,
+                        Index       nrows,
+                        Descriptor* desc) {
+	// Cannot use mgpu, because BinaryOps and Monoids do not satisfy
+	// first_argument_type requirement for mgpu ops
+	// mgpu::SegReduceCsr( A->d_csrVal_, A->d_csrRowPtr_,
+	//     static_cast<int>(A->nvals_), static_cast<int>(A->nrows_),
+	//     true, w->d_val_, op.identity(), op, *desc->d_context_ );
+
+  // Use CUB
+  size_t temp_storage_bytes = 0;
+
+  if (nrows == 0)
+    return GrB_INVALID_OBJECT;
+
+  CUDA_CALL(cub::DeviceSegmentedReduce::Reduce(NULL, temp_storage_bytes,
+      d_input_val, d_output_val, nrows, d_row_ptr, d_row_ptr+1, op,
+      op.identity()));
+
+  temp_storage_bytes = desc->d_temp_size_;
+  desc->resize(temp_storage_bytes, "temp");
+
+  CUDA_CALL(cub::DeviceSegmentedReduce::Reduce(desc->d_temp_,
+      temp_storage_bytes, d_input_val, d_output_val, nrows, d_row_ptr,
+      d_row_ptr+1, op, op.identity()));
+  return GrB_SUCCESS;
+}
+
 // Dense vector variant
 template <typename T, typename U,
           typename BinaryOpT, typename MonoidT>
@@ -55,7 +89,7 @@ Info reduceInner(T*                     val,
                  MonoidT                op,
                  const DenseVector<U>*  u,
                  Descriptor*            desc) {
-  return reduceCommon(val, accum, op, u->d_val_, u->nvals_, desc);
+  return reduceVectorCommon(val, accum, op, u->d_val_, u->nvals_, desc);
 }
 
 // Sparse vector variant
@@ -69,7 +103,7 @@ Info reduceInner(T*                     val,
   if (desc->struconly())
     *val = u->nvals_;
   else
-    return reduceCommon(val, accum, op, u->d_val_, u->nvals_, desc);
+    return reduceVectorCommon(val, accum, op, u->d_val_, u->nvals_, desc);
   return GrB_SUCCESS;
 }
 
@@ -84,7 +118,7 @@ Info reduceInner(T*                     val,
   if (desc->struconly())
     *val = A->nvals_;
   else
-    return reduceCommon(val, accum, op, A->d_csrVal_, A->nvals_, desc);
+    return reduceVectorCommon(val, accum, op, A->d_csrVal_, A->nvals_, desc);
   return GrB_SUCCESS;
 }
 
@@ -115,27 +149,11 @@ Info reduceInner(DenseVector<W>*        w,
     std::cout << "Error: Sparse reduce matrix-to-vector for structure only\n";
     std::cout << "not implemented yet!\n";
   } else {
-    // Cannot use mgpu, because BinaryOps and Monoids do not satisfy
-    // first_argument_type requirement for mgpu ops
-    // mgpu::SegReduceCsr( A->d_csrVal_, A->d_csrRowPtr_,
-    //     static_cast<int>(A->nvals_), static_cast<int>(A->nrows_),
-    //     true, w->d_val_, op.identity(), op, *desc->d_context_ );
-
-    // Use CUB
-    size_t temp_storage_bytes = 0;
-
-    if (A->nrows_ == 0)
-      return GrB_INVALID_OBJECT;
-    
-    temp_storage_bytes = desc->d_temp_size_;
-    desc->resize(temp_storage_bytes, "temp");
-
-    CUDA_CALL(cub::DeviceSegmentedReduce::Reduce(desc->d_temp_,
-        temp_storage_bytes, A->d_csrVal_, w->d_val_, A->nrows_,
-        A->d_csrRowPtr_, A->d_csrRowPtr_+1, op, op.identity()));
     w->nnz_ = A->nrows_;
+    w->need_update_ = true;
+    return reduceMatrixCommon(w->d_val_, accum, op, A->d_csrRowPtr_,
+        A->d_csrVal_, A->nrows_, desc);
   }
-  w->need_update_ = true;
 
   return GrB_SUCCESS;
 }
