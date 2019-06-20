@@ -17,8 +17,8 @@ enum LoadBalanceMode {
 };
 
 enum MxmCusparseMode {
-  GrB_CUSPARSE_ONE,
-  GrB_CUSPARSE_TWO
+  GrB_CUSPARSE_ONE = 1,
+  GrB_CUSPARSE_TWO = 2
 };
 }  // namespace backend
 }  // namespace graphblas

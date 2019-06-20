@@ -41,6 +41,7 @@ int main(int argc, char** argv) {
   // Parse arguments
   bool debug;
   bool mtxinfo;
+  bool filter;
   int  directed;
   char* dat_name;
   po::variables_map vm;
@@ -49,6 +50,7 @@ int main(int argc, char** argv) {
   parseArgs(argc, argv, &vm);
   debug     = vm["debug"    ].as<bool>();
   mtxinfo   = vm["mtxinfo"  ].as<bool>();
+  filter    = vm["filter"   ].as<bool>();
   directed  = vm["directed" ].as<int>();
 
   for (int i = 0; i < NMAXNEURONS; i++) {
@@ -158,7 +160,7 @@ int main(int argc, char** argv) {
       graphblas::algorithm::dnn(numNeurons, numFeatures, 
                                 mnist, Weights, Biases, 
                                 true, /*TrueCategories,*/ true_categories, // Alternative: dense vector
-                                &desc);
+                                filter, &desc);
       warmup.Stop();
 
       // // Benchmark

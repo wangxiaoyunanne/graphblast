@@ -43,6 +43,7 @@ Info dnn (
   Vector<T>& Bias,              // Bias, size (numNeurons, 1)
   bool checkResult,             // Check results or not
   std::vector<bool>& TrueCategories, // Alternative: TrueCategories, size (numFeatures, 1)
+  bool filter,                  // Filter out 0's from matrix or not
   Descriptor* desc              // Descriptor
 ) {
   int nlayers = W.size();
@@ -109,7 +110,10 @@ Info dnn (
         &Y, 0.f, desc);
     // CHECK(Y.getStorage(&s));
     // std::cout << "Y storage after ReLU: " << as_integer(s) << std::endl;
-    CHECK(Y.rebuild(0.f, desc));
+
+    // Filter out 0's from sparse matrix
+    if (filter)
+      CHECK(Y.rebuild(0.f, desc));
 
     // Optional: clipping of values above 32 
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),

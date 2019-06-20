@@ -75,14 +75,6 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
   int baseC = 0;
   int *nnzTotalDevHostPtr = &(C_nvals);
   C->allocate();
-  /*if (C->d_csrRowPtr_ != NULL)
-    CUDA_CALL(cudaFree(C->d_csrRowPtr_));
-  CUDA_CALL(cudaMalloc(&C->d_csrRowPtr_, (C_nrows+1)*sizeof(Index)));
-
-  if (C->h_csrRowPtr_ != NULL)
-    free(C->h_csrRowPtr_);
-  C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((C_nrows+1)*
-      sizeof(Index)));*/
 
   // Analyze
   status = cusparseXcsrgemmNnz(handle,
@@ -245,14 +237,7 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
 
   int baseC;
   int *nnzTotalDevHostPtr = &(C_nvals);
-  if (C->d_csrRowPtr_ != NULL)
-    CUDA_CALL(cudaFree(C->d_csrRowPtr_));
-  CUDA_CALL(cudaMalloc(&C->d_csrRowPtr_, (A_nrows+1)*sizeof(Index)));
-
-  if (C->h_csrRowPtr_ != NULL)
-    free(C->h_csrRowPtr_);
-  C->h_csrRowPtr_ = reinterpret_cast<Index*>(malloc((A_nrows+1)*sizeof(
-      Index)));
+  C->allocate();
 
   // Step 1: create an opaque structure
   cusparseCreateCsrgemm2Info(&info);
@@ -331,7 +316,7 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
   if (nnzTotalDevHostPtr != NULL) {
     C_nvals = *nnzTotalDevHostPtr;
   } else {
-    CUDA_CALL(cudaMemcpy(&C_nvals, C->d_csrRowPtr_+A_nrows, sizeof(int),
+    CUDA_CALL(cudaMemcpy(&C_nvals, C->d_csrRowPtr_+C_nrows, sizeof(int),
         cudaMemcpyDeviceToHost));
     CUDA_CALL(cudaMemcpy(&baseC, C->d_csrRowPtr_, sizeof(int),
         cudaMemcpyDeviceToHost));
@@ -344,21 +329,21 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
   if (C_nvals > C->ncapacity_) {
     if (desc->debug())
       std::cout << "Increasing matrix C size: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
+    C->ncapacity_ = C_nvals*C->kresize_ratio_;
     if (C->d_csrColInd_ != NULL) {
       CUDA_CALL(cudaFree(C->d_csrColInd_));
       CUDA_CALL(cudaFree(C->d_csrVal_));
     }
-    CUDA_CALL(cudaMalloc(&C->d_csrColInd_, C_nvals*sizeof(Index)));
-    CUDA_CALL(cudaMalloc(&C->d_csrVal_, C_nvals*sizeof(c)));
+    CUDA_CALL(cudaMalloc(&C->d_csrColInd_, C->ncapacity_*sizeof(Index)));
+    CUDA_CALL(cudaMalloc(&C->d_csrVal_, C->ncapacity_*sizeof(c)));
 
     if (C->h_csrColInd_ != NULL) {
       free(C->h_csrColInd_);
       free(C->h_csrVal_);
     }
-    C->h_csrColInd_ = reinterpret_cast<Index*>(malloc(C_nvals*sizeof(Index)));
-    C->h_csrVal_    = reinterpret_cast<T*>(malloc(C_nvals*sizeof(T)));
-
-    C->ncapacity_ = C_nvals;
+    C->h_csrColInd_ = reinterpret_cast<Index*>(malloc(C->ncapacity_*sizeof(
+        Index)));
+    C->h_csrVal_    = reinterpret_cast<T*>(malloc(C->ncapacity_*sizeof(T)));
   } else if (desc->debug()) {
       std::cout << "Keeping matrix C size: " << C->ncapacity_ << " < " << C_nvals << std::endl;
   }

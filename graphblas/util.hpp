@@ -107,6 +107,8 @@ void parseArgs(int argc, char**argv, po::variables_map* vm) {
         "0: Jones-Plassman, 1: Maximal independent set, 2: Independent set")
     ("seed", po::value<int>()->default_value(-1),
         "Random number generator seed for algorithms with random component i.e. SSSP for determining edge weight, GC for determining random vertex weight")  // NOLINT(whitespace/line_length)
+    ("filter", po::value<bool>()->default_value(true),
+        "True means filter out 0's from sparse matrix, False means do not do it")  // NOLINT(whitespace/line_length)
 
     // GPU params
     ("nthread", po::value<int>()->default_value(128),
