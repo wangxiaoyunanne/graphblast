@@ -110,21 +110,17 @@ Info spmspvApspieMerge(Index*       w_ind,
 
   indirectScanKernel<<<NB, NT>>>(reinterpret_cast<Index*>(d_temp_nvals),
       A_csrRowPtr, u_ind, *u_nvals);
-  CUDA_CALL(cudaDeviceSynchronize());
   // Note: cannot use op.add_op() here
   mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(reinterpret_cast<Index*>(
       d_temp_nvals), *u_nvals, (Index)0, mgpu::plus<Index>(),
       reinterpret_cast<Index*>(d_scan)+*u_nvals, w_nvals,
       reinterpret_cast<Index*>(d_scan), reinterpret_cast<Index*>(d_temp),
       *(desc->d_context_));
-  CUDA_CALL(cudaDeviceSynchronize());
 
   if (desc->debug()) {
     printDevice("d_temp_nvals", reinterpret_cast<Index*>(d_temp_nvals),
         *u_nvals);
-    CUDA_CALL(cudaDeviceSynchronize());
     printDevice("d_scan", reinterpret_cast<Index*>(d_scan), *u_nvals+1);
-    CUDA_CALL(cudaDeviceSynchronize());
 
     std::cout << "u_nvals: " << *u_nvals << std::endl;
     std::cout << "w_nvals: " << *w_nvals << std::endl;

@@ -288,7 +288,6 @@ Info SparseVector<T>::fill(Index nvals) {
 template <typename T>
 Info SparseVector<T>::print(bool force_update) {
   std::cout << nsize_ << " x 1:" << nvals_ << " nnz\n";
-  CUDA_CALL(cudaDeviceSynchronize());
   CHECK(gpuToCpu(force_update));
   printArray("ind", h_ind_, std::min(nvals_, 40));
   printArray("val", h_val_, std::min(nvals_, 40));

@@ -98,7 +98,6 @@ Info DenseMatrix<T>::dup(const DenseMatrix* rhs) {
 
   CUDA_CALL(cudaMemcpy(d_denseVal_, rhs->d_denseVal_, nvals_*sizeof(T),
       cudaMemcpyDeviceToDevice));
-  CUDA_CALL(cudaDeviceSynchronize());
 
   need_update_ = true;
   return err;

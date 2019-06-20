@@ -179,7 +179,6 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
       std::cout << "Error: Matrix type not supported.\n";
   }
 
-  CUDA_CALL(cudaDeviceSynchronize());
   C->need_update_ = true;  // Set flag that we need to copy data from GPU
   C->nvals_ = C_nvals;     // Update nnz count for C
   return GrB_SUCCESS;
@@ -386,7 +385,6 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
 
   C->need_update_ = true;  // Set flag that we need to copy data from GPU
   C->nvals_ = C_nvals;     // Update nnz count for C
-  CUDA_CALL(cudaDeviceSynchronize());
   if (desc->debug())
     std::cout << C_nvals << " nonzeroes!\n";
   return GrB_SUCCESS;

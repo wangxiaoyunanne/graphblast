@@ -920,8 +920,6 @@ Info SparseMatrix<T>::gpuToCpu(bool force_update) {
         }
       }
     }
-
-    CUDA_CALL(cudaDeviceSynchronize());
   }
   need_update_ = false;
   return GrB_SUCCESS;

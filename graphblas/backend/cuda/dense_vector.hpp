@@ -323,7 +323,6 @@ Info DenseVector<T>::fillAscending(Index nvals) {
 template <typename T>
 Info DenseVector<T>::print(bool force_update) {
   std::cout << nvals_ << " x 1: " << nvals_ << " nnz\n";
-  CUDA_CALL(cudaDeviceSynchronize());
   CHECK(gpuToCpu(force_update));
   printArray("val", h_val_, std::min(nvals_, 40));
   return GrB_SUCCESS;
