@@ -109,6 +109,10 @@ void parseArgs(int argc, char**argv, po::variables_map* vm) {
         "Random number generator seed for algorithms with random component i.e. SSSP for determining edge weight, GC for determining random vertex weight")  // NOLINT(whitespace/line_length)
     ("filter", po::value<bool>()->default_value(true),
         "True means filter out 0's from sparse matrix, False means do not do it")  // NOLINT(whitespace/line_length)
+    ("nneuron", po::value<int>()->default_value(1024),
+        "Number of neurons for DNN application")
+    ("nlayer", po::value<int>()->default_value(120),
+        "Number of layers for DNN application")
 
     // GPU params
     ("nthread", po::value<int>()->default_value(128),
@@ -387,11 +391,13 @@ int readMtx(const char*                    fname,
   if ((ret_code = mm_read_mtx_crd_size(f, nrows, ncols, nvals)) != 0)
     exit(1);
 
-  printf("Undirected due to mtx: %d\n", mm_is_symmetric(matcode));
-  printf("Undirected due to cmd: %d\n", directed == 2);
   bool is_undirected = mm_is_symmetric(matcode) || directed == 2;
   is_undirected = (directed == 1) ? false : is_undirected;
-  printf("Undirected: %d\n", is_undirected);
+  if (mtxinfo) {
+    printf("Undirected due to mtx: %d\n", mm_is_symmetric(matcode));
+    printf("Undirected due to cmd: %d\n", directed == 2);
+    printf("Undirected: %d\n", is_undirected);
+  }
   if (dat_name != NULL)
     *dat_name = convert(fname, is_undirected);
 
