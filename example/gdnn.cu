@@ -22,11 +22,9 @@ bool debug_;
 bool memory_;
 
 int main(int argc, char** argv) {
-  
   // Parameters
   std::set<int> nlayers = {120, 480, 1920};
   std::map<int, float> nneurons = {{1024, -0.3}, {4096, -0.35}, {16384, -0.4}, {65536, -0.45}};
-  int nfeatures = 60000;
 
   if (argc < 2) {
     fprintf(stderr, "Usage: %s [data_dir]\n", argv[0]);
@@ -45,12 +43,13 @@ int main(int argc, char** argv) {
 
   // Parse args
   parseArgs(argc, argv, &vm);
-  debug     = vm["debug"    ].as<bool>();
-  mtxinfo   = vm["mtxinfo"  ].as<bool>();
-  filter    = vm["filter"   ].as<bool>();
-  directed  = vm["directed" ].as<int>();
-  nneuron   = vm["nneuron"  ].as<int>();
-  nlayer    = vm["nlayer"   ].as<int>();
+  debug     = vm["debug"     ].as<bool>();
+  mtxinfo   = vm["mtxinfo"   ].as<bool>();
+  filter    = vm["filter"    ].as<bool>();
+  directed  = vm["directed"  ].as<int>();
+  nneuron   = vm["nneuron"   ].as<int>();
+  nlayer    = vm["nlayer"    ].as<int>();
+  nfeature  = vm["batch_size"].as<int>();
 
   if (nneurons.count(nneuron) == 0 || nlayers.count(nlayer) == 0) {
     std::cout << "Error: Invalid neuron or layer input!\n";
@@ -71,12 +70,11 @@ int main(int argc, char** argv) {
   std::vector<graphblas::Index> col_indices, col_idx_mnist;
   std::vector<float> values, val_mnist, bias_v(nneuron, bias);
   std::vector<int> true_categories_idx;
-  std::vector<bool> true_categories(nfeatures, 0);
+  std::vector<bool> true_categories(nfeature, 0);
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   std::vector<graphblas::Matrix<float>> Weights(nlayer, graphblas::Matrix<float>(nneuron, nneuron));
-  // std::vector<graphblas::Matrix<float>> Biases(nlayer, graphblas::Matrix<float>(nneuron, nneuron));
-  graphblas::Vector<bool> TrueCategories(nfeatures);
+  graphblas::Vector<bool> TrueCategories(nfeature);
 
   // Read true categories
   std::ifstream categories_file;
@@ -86,7 +84,7 @@ int main(int argc, char** argv) {
     true_categories_idx.push_back(x);
     true_categories[x-1] = 1;
   }
-  TrueCategories.build(&true_categories, nfeatures);
+  TrueCategories.build(&true_categories, nfeature);
   if (debug)
     CHECK(TrueCategories.print());
 
@@ -108,8 +106,9 @@ int main(int argc, char** argv) {
   for (int layer = 0; layer < nlayer; layer++) {
     // Read mtx file of layers
     std::string file_name = layers_file_prefix + std::to_string(layer+1) + ".mtx";
-    readMtx(file_name.c_str() , &row_indices, &col_indices, &values, &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
-    std::cout<< file_name << std::endl;
+    readMtx(file_name.c_str(), &row_indices, &col_indices, &values, &nrows,
+        &ncols, &nvals, directed, mtxinfo, NULL);
+    std::cout << file_name << std::endl;
     
     // Build matrix
     CHECK((Weights[layer]).build(&row_indices, &col_indices, &values, nvals, GrB_NULL, dat_name));
@@ -151,7 +150,7 @@ int main(int argc, char** argv) {
   // Warmup
   CpuTimer warmup;
   warmup.Start();
-  graphblas::algorithm::dnn(nneuron, nfeatures, 
+  graphblas::algorithm::dnn(nneuron, nfeature, 
                             mnist, Weights, Biases, 
                             true, /*TrueCategories,*/ true_categories, // Alternative: dense vector
                             filter, &desc);

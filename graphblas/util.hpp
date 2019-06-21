@@ -113,6 +113,8 @@ void parseArgs(int argc, char**argv, po::variables_map* vm) {
         "Number of neurons for DNN application")
     ("nlayer", po::value<int>()->default_value(120),
         "Number of layers for DNN application")
+    ("batch_size", po::value<int>()->default_value(60000),
+        "Size of minibatch used")
 
     // GPU params
     ("nthread", po::value<int>()->default_value(128),
@@ -433,6 +435,7 @@ int readMtx(const char*                    fname,
   }
 
   // TODO(@ctcyang): parse ret_code
+  fclose(f);
   return ret_code;
 }
 
