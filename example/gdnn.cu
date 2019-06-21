@@ -38,6 +38,7 @@ int main(int argc, char** argv) {
   int  directed;
   int  nneuron;
   int  nlayer;
+  int  nfeature;
   char* dat_name;
   po::variables_map vm;
 
@@ -74,7 +75,6 @@ int main(int argc, char** argv) {
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   std::vector<graphblas::Matrix<float>> Weights(nlayer, graphblas::Matrix<float>(nneuron, nneuron));
-  graphblas::Vector<bool> TrueCategories(nfeature);
 
   // Read true categories
   std::ifstream categories_file;
@@ -84,9 +84,6 @@ int main(int argc, char** argv) {
     true_categories_idx.push_back(x);
     true_categories[x-1] = 1;
   }
-  TrueCategories.build(&true_categories, nfeature);
-  if (debug)
-    CHECK(TrueCategories.print());
 
   // Read input features
   readMtx(input_features_file_path.c_str(), &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist, &nval_mnist, directed, mtxinfo, NULL);
@@ -112,22 +109,11 @@ int main(int argc, char** argv) {
     
     // Build matrix
     CHECK((Weights[layer]).build(&row_indices, &col_indices, &values, nvals, GrB_NULL, dat_name));
-    // CHECK(Weights[layer].nrows(&nrows));
-    // CHECK(Weights[layer].ncols(&ncols));
-    // CHECK(Weights[layer].nvals(&nvals));
     if (debug)
       CHECK(Weights[layer].print());
-    // bias MATRIX
-    // graphblas::Matrix<float> b(nrows, ncols);
-    // CHECK(b.build(&row_idx_b, &col_idx_b, &diag_val_b, nneuron, GrB_NULL, dat_name));
-    // Biases[layer] = b;
-    // CHECK(b.print());
   }
 
-  // bias VECTOR
-  // graphblas ::  Vector<float> Biases(nrows);
-  // for (int i =0; i < nneuron; i++) {bias_idx [i] = i ;}
-  // CHECK(Biases.build(&bias_idx, &bias_v, nrows,GrB_NULL));
+  // Bias Vector
   Vector<float> Biases(nrows);
   CHECK(Biases.fill(bias));
 
@@ -139,22 +125,45 @@ int main(int argc, char** argv) {
   graphblas::Descriptor desc;
   CHECK(desc.loadArgs(vm));
 
-  // // Cpu BFS
-  // CpuTimer dnn_cpu;
-  // float* h_dnn_cpu = reinterpret_cast<float*>(malloc(nrows*sizeof(float)));
-  // int depth = 10000;
-  // dnn_cpu.Start();
-  // int d = graphblas::algorithm::dnnCpu(...);
-  // dnn_cpu.Stop();
+  Matrix<float> Y(nrow_mnist, ncol_mnist);
+  Y.dup(&mnist);
 
   // Warmup
   CpuTimer warmup;
   warmup.Start();
-  graphblas::algorithm::dnn(nneuron, nfeature, 
-                            mnist, Weights, Biases, 
-                            true, /*TrueCategories,*/ true_categories, // Alternative: dense vector
-                            filter, &desc);
+  graphblas::algorithm::dnn(nneuron, nfeature, mnist, Y, Weights, Biases, true, 
+      filter, &desc);
   warmup.Stop();
+
+  // Extract results
+  Vector<float> C(nfeature);
+  Vector<bool> Categories(nfeature);
+  CHECK(Categories.fill(false));
+  std::vector<bool> Categories_val;
+  std::vector<Index> Categories_ind; // If Categories is sparse
+  Index Categories_ind_size;
+
+  graphblas::backend::GpuTimer gpu_check;
+  float gpu_check_time = 0.f;
+  gpu_check.Start();
+
+  graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+      graphblas::PlusMonoid<float>(), &Y, &desc);
+
+  // Extract category pattern into dense vectors
+  // Note: Non-zero = true, zero = false
+  assign<bool, float>(&Categories, &C, GrB_NULL, true, GrB_ALL, nfeature,
+      &desc);
+
+  Categories_ind_size = nfeature;
+  CHECK(Categories.extractTuples(&Categories_val, &Categories_ind_size));
+
+  gpu_check.Stop();
+  gpu_check_time += gpu_check.ElapsedMillis();
+  std::cout << "Check time: " << gpu_check_time << std::endl;
+
+  // Check correctness (not timed)
+  BOOST_ASSERT_LIST(true_categories, Categories_val, nfeature);
 
   // // Benchmark
   // CpuTimer dnn_gpu_timer;
