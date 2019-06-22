@@ -31,7 +31,7 @@ auto as_integer(Enumeration const value)
 
 
 template <typename T>
-Info dnn ( 
+float dnn ( 
   int numNeurons,               // # of neurons
   int numFeatures,              // # of features
   Matrix<T>& Y0,                // Input features: nfeatures-by-nneurons
@@ -39,6 +39,8 @@ Info dnn (
   std::vector<Matrix<T>>& W,    // W, size (nlayers, numNeurons, numNeurons)
   Vector<T>& Bias,              // Bias, size (numNeurons, 1)
   bool filter,                  // Filter out 0's from matrix or not
+  bool transpose,               // Whether we are doing Y_1 = Y_0 x W + b or
+                                // Y_1^T = W^T x Y_0^T + b^T
   Descriptor* desc              // Descriptor
 ) {
   int nlayers = W.size();
@@ -68,15 +70,20 @@ Info dnn (
     if (desc->descriptor_.debug())
       std::cout << "=====Layer " << layer + 1 << "=====\n";
 
-    mxm<T, T, T, T>(&Y_swap, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &Y, &(W[layer]), desc);
+    if (transpose)
+      mxm<T, T, T, T>(&Y_swap, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &(W[layer]), &Y, desc);
+    else
+      mxm<T, T, T, T>(&Y_swap, GrB_NULL, GrB_NULL, PlusMultipliesSemiring<T>(), &Y, &(W[layer]), desc);
 
     CHECK(Y.swap(&Y_swap));
 
     // Null mask and accum, and + semiring for C = A + B
-    CHECK(desc->toggle(graphblas::GrB_INP1));
+    if (!transpose)
+      CHECK(desc->toggle(graphblas::GrB_INP0));
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(),
         &Y, &Bias, desc);
-    CHECK(desc->toggle(graphblas::GrB_INP1));
+    if (!transpose)
+      CHECK(desc->toggle(graphblas::GrB_INP0));
 
     // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(),
@@ -92,9 +99,8 @@ Info dnn (
   }
   gpu_infer.Stop();
   gpu_infer_time += gpu_infer.ElapsedMillis();
-  std::cout << "Inference time: " << gpu_infer_time << std::endl;
 
-  return GrB_SUCCESS;
+  return gpu_infer_time;
 }
 
 template <typename T>

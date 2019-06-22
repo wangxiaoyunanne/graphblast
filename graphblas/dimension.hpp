@@ -33,6 +33,7 @@ inline Info checkDimRowCol(const Matrix<a>* A,
   CHECK(B->ncols(&B_ncols));
   if (A_nrows != B_ncols) {
     std::cout << str << std::endl;
+    std::cout << A_nrows << " != " << B_ncols << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;
@@ -48,6 +49,7 @@ inline Info checkDimRowRow(const Matrix<a>* A,
   CHECK(B->nrows(&B_nrows));
   if (A_nrows != B_nrows) {
     std::cout << str << std::endl;
+    std::cout << A_nrows << " != " << B_nrows << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;
@@ -63,6 +65,7 @@ inline Info checkDimColCol(const Matrix<a>* A,
   CHECK(B->ncols(&B_ncols));
   if (A_ncols != B_ncols) {
     std::cout << str << std::endl;
+    std::cout << A_ncols << " != " << B_ncols << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;
@@ -78,6 +81,7 @@ inline Info checkDimRowSize(const Matrix<a>*   A,
   CHECK(u->size(&u_size));
   if (A_nrows != u_size) {
     std::cout << str << std::endl;
+    std::cout << A_nrows << " != " << u_size << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;
@@ -93,6 +97,7 @@ inline Info checkDimColSize(const Matrix<a>* A,
   CHECK(u->size(&u_size));
   if (A_ncols != u_size) {
     std::cout << str << std::endl;
+    std::cout << A_ncols << " != " << u_size << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;
@@ -108,6 +113,7 @@ inline Info checkDimSizeSize(const Vector<U>*   u,
   CHECK(w->size(&w_size));
   if (u_size != w_size) {
     std::cout << str << std::endl;
+    std::cout << u_size << " != " << w_size << std::endl;
     return GrB_DIMENSION_MISMATCH;
   }
   return GrB_SUCCESS;

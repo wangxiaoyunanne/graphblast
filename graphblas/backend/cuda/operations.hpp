@@ -475,7 +475,7 @@ Info eWiseMult(Matrix<c>*       C,
   Desc_value inp0_mode, inp1_mode;
   CHECK(desc->get(GrB_INP0, &inp0_mode));
   CHECK(desc->get(GrB_INP1, &inp1_mode));
-  if (inp0_mode != GrB_DEFAULT) return GrB_INVALID_VALUE;
+  if (inp1_mode != GrB_DEFAULT) return GrB_INVALID_VALUE;
 
   Storage A_mat_type;
   Storage B_vec_type;
@@ -484,7 +484,7 @@ Info eWiseMult(Matrix<c>*       C,
 
   // u is column vector which gets broadcasted
   //   C = mask .* (A .* u)
-  if (inp1_mode != GrB_TRAN) {
+  if (inp0_mode != GrB_TRAN) {
     if (A_mat_type == GrB_DENSE) {
       std::cout << "eWiseMult Dense Matrix Broadcast Vector\n";
       std::cout << "Error: Feature not implemented yet!\n";
@@ -889,6 +889,8 @@ Info apply(Matrix<c>*       C,
   return GrB_SUCCESS;
 }
 
+// Default: Reduce matrix-to-vector across rows
+// If reduce across columns is wanted instead, set Input 0 to be transposed
 template <typename W, typename a, typename M,
           typename BinaryOpT,     typename MonoidT>
 Info reduce(Vector<W>*       w,
@@ -904,21 +906,49 @@ Info reduce(Vector<W>*       w,
     CHECK(A_t->print());
   }
 
+  // Transpose
+  Desc_value inp0_mode, inp1_mode;
+  CHECK(desc->get(GrB_INP0, &inp0_mode));
+  CHECK(desc->get(GrB_INP1, &inp1_mode));
+  if (inp1_mode != GrB_DEFAULT) return GrB_INVALID_VALUE;
+
   // Get storage:
   Storage mat_type;
   CHECK(A->getStorage(&mat_type));
   CHECK(w->setStorage(GrB_DENSE));
 
+  // Get matrix dimension:
+  Index A_nrows;
+  CHECK(A_t->nrows(&A_nrows));
+
   if (mask == NULL) {
   // 2 cases:
   // 1) SpMat
   // 2) DeMat
-    if (mat_type == GrB_SPARSE)
-      CHECK(reduceInner(&w->dense_, mask, accum, op, &A->sparse_, desc));
-    else if (mat_type == GrB_DENSE)
-      CHECK(reduceInner(&w->dense_, mask, accum, op, &A->dense_, desc));
-    else
-      return GrB_UNINITIALIZED_OBJECT;
+    if (inp0_mode != GrB_TRAN) {
+      if (mat_type == GrB_SPARSE)
+        CHECK(reduceInner(&w->dense_, mask, accum, op, &A->sparse_, desc));
+      else if (mat_type == GrB_DENSE)
+        CHECK(reduceInner(&w->dense_, mask, accum, op, &A->dense_, desc));
+      else
+        return GrB_UNINITIALIZED_OBJECT;
+    } else {
+      if (mat_type == GrB_SPARSE) {
+        Vector<a> temp(A_nrows);
+        temp.fill(1.f);
+
+        CHECK(desc->toggle(GrB_INP0));
+        CHECK(vxm(w, mask, accum, PlusMultipliesSemiring<a>(), &temp, A, desc));
+        CHECK(desc->toggle(GrB_INP0));
+
+        CHECK(w->convert(op.identity(), desc->switchpoint(), desc));
+      } else if (mat_type == GrB_DENSE) {
+        CHECK(reduceInnerTranspose(&w->dense_, mask, accum, op, &A->dense_,
+            desc));
+      } else {
+        return GrB_UNINITIALIZED_OBJECT;
+      }
+    }
   } else {
     std::cout << "Error: Masked reduce not implemented yet!\n";
   }

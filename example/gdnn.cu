@@ -36,6 +36,7 @@ int main(int argc, char** argv) {
   bool debug;
   bool mtxinfo;
   bool filter;
+  bool transpose;
   int  directed;
   int  nneuron;
   int  nlayer;
@@ -48,6 +49,7 @@ int main(int argc, char** argv) {
   debug      = vm["debug"     ].as<bool>();
   mtxinfo    = vm["mtxinfo"   ].as<bool>();
   filter     = vm["filter"    ].as<bool>();
+  transpose  = vm["transpose" ].as<bool>();
   directed   = vm["directed"  ].as<int>();
   nneuron    = vm["nneuron"   ].as<int>();
   nlayer     = vm["nlayer"    ].as<int>();
@@ -97,8 +99,12 @@ int main(int argc, char** argv) {
   for (int layer = 0; layer < nlayer; layer++) {
     // Read mtx file of layers
     std::string file_name = layers_file_prefix + std::to_string(layer+1) + ".mtx";
-    readMtx(file_name.c_str(), &row_indices, &col_indices, &values,
-        &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
+    if (transpose)
+      readMtx(file_name.c_str(), &col_indices, &row_indices, &values,
+          &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
+    else
+      readMtx(file_name.c_str(), &row_indices, &col_indices, &values,
+          &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
     std::cout << file_name << std::endl;
     
     // Build matrix
@@ -120,6 +126,8 @@ int main(int argc, char** argv) {
   CHECK(desc.loadArgs(vm));
 
   std::vector<bool> categories_val;
+  float total_infer_time = 0.f;
+  float total_check_time = 0.f;
 
   for (graphblas::Index i = 0; i < ntrain_sample; i += batch_size) {
     // Compute current batch size
@@ -171,23 +179,34 @@ int main(int argc, char** argv) {
     for (auto& val : temp_row_idx)
       val -= i;
 
-    Matrix<float> mnist(curr_batch_size, ncol_mnist);
-    CHECK(mnist.build(&temp_row_idx, &temp_col_idx, &temp_val_idx, length,
-        GrB_NULL, NULL));
+    Matrix<float> mnist;
+    if (transpose) {
+      mnist.nnew(ncol_mnist, curr_batch_size);
+      CHECK(mnist.build(&temp_col_idx, &temp_row_idx, &temp_val_idx, length,
+          GrB_NULL, NULL));
+    } else {
+      mnist.nnew(curr_batch_size, ncol_mnist);
+      CHECK(mnist.build(&temp_row_idx, &temp_col_idx, &temp_val_idx, length,
+          GrB_NULL, NULL));
+    }
     CHECK(mnist.nrows(&nrows));
     CHECK(mnist.ncols(&ncols));
     CHECK(mnist.nvals(&nvals));
     if (debug)
       CHECK(mnist.print());
 
-    Matrix<float> Y(curr_batch_size, ncol_mnist);
+    Matrix<float> Y;
+    if (transpose)
+      Y.nnew(ncol_mnist, curr_batch_size);
+    else
+      Y.nnew(curr_batch_size, ncol_mnist);
     Y.dup(&mnist);
 
     // Warmup
     CpuTimer warmup;
     warmup.Start();
-    graphblas::algorithm::dnn(nneuron, curr_batch_size, mnist, Y, Weights,
-        Biases, filter, &desc);
+    float gpu_infer_time = graphblas::algorithm::dnn(nneuron, curr_batch_size,
+        mnist, Y, Weights, Biases, filter, transpose, &desc);
     warmup.Stop();
 
     // Extract results
@@ -201,8 +220,15 @@ int main(int argc, char** argv) {
     float gpu_check_time = 0.f;
     gpu_check.Start();
 
-    graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
-        graphblas::PlusMonoid<float>(), &Y, &desc);
+    if (transpose) {
+      CHECK(desc.toggle(GrB_INP0));
+      graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+          graphblas::PlusMonoid<float>(), &Y, &desc);
+      CHECK(desc.toggle(GrB_INP0));
+    } else {
+      graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+          graphblas::PlusMonoid<float>(), &Y, &desc);
+    }
 
     // Extract category pattern into dense vectors
     // Note: Non-zero = true, zero = false
@@ -214,7 +240,11 @@ int main(int argc, char** argv) {
 
     gpu_check.Stop();
     gpu_check_time += gpu_check.ElapsedMillis();
+    std::cout << "Infer time: " << gpu_infer_time << std::endl;
     std::cout << "Check time: " << gpu_check_time << std::endl;
+
+    total_infer_time += gpu_infer_time;
+    total_check_time += gpu_check_time;
 
     categories_val.insert(categories_val.end(), temp_categories_val.begin(),
         temp_categories_val.end());
@@ -222,6 +252,9 @@ int main(int argc, char** argv) {
 
   // Check correctness (not timed)
   BOOST_ASSERT_LIST(true_categories, categories_val, ntrain_sample);
+
+  std::cout << "Total infer time: " << total_infer_time << std::endl;
+  std::cout << "Total check time: " << total_check_time << std::endl;
 
   // // Benchmark
   // CpuTimer dnn_gpu_timer;

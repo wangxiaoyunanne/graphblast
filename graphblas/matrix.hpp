@@ -94,6 +94,8 @@ Info Matrix<T>::nnew(Index nrows, Index ncols) {
 template <typename T>
 Info Matrix<T>::dup(const Matrix* rhs) {
   if (rhs == NULL) return GrB_NULL_POINTER;
+  CHECK(checkDimRowRow(this, rhs,  "A.nrows == B.nrows"));
+  CHECK(checkDimColCol(this, rhs,  "A.ncols == B.ncols"));
   return matrix_.dup(&rhs->matrix_);
 }
 
