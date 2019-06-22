@@ -38,15 +38,14 @@ Info dnn (
   Matrix<T>& Y,                 // Activation: nfeatures-by-nneurons
   std::vector<Matrix<T>>& W,    // W, size (nlayers, numNeurons, numNeurons)
   Vector<T>& Bias,              // Bias, size (numNeurons, 1)
-  bool checkResult,             // Check results or not
   bool filter,                  // Filter out 0's from matrix or not
   Descriptor* desc              // Descriptor
 ) {
   int nlayers = W.size();
   Index Y0_rows, Y0_cols, Y0_nrows, Y0_ncols;
   // Using alternative: dense vector
-
   CHECK(Bias.size(&Y0_rows));
+
   // Vector doesn't have .empty()
   if (Y0_rows == 0) {
     std::cout << "Error: Bias vector empty." << std::endl;
@@ -105,7 +104,6 @@ Info dnnCpu (
     int numNeurons,             // # of neurons
     Matrix<T>& Y0,              // Input features: nfeatures-by-nneurons
     Matrix<T>& Y,               // Activations: nfeatures-by-nneurons
-    bool checkResult,           // Check results or not
     Descriptor* desc            // Descriptor
 )
 {

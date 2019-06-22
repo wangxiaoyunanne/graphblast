@@ -23,6 +23,7 @@ bool memory_;
 
 int main(int argc, char** argv) {
   // Parameters
+  int ntrain_sample = 60000;
   std::set<int> nlayers = {120, 480, 1920};
   std::map<int, float> nneurons = {{1024, -0.3}, {4096, -0.35}, {16384, -0.4}, {65536, -0.45}};
 
@@ -38,19 +39,19 @@ int main(int argc, char** argv) {
   int  directed;
   int  nneuron;
   int  nlayer;
-  int  nfeature;
+  int  batch_size;
   char* dat_name;
   po::variables_map vm;
 
   // Parse args
   parseArgs(argc, argv, &vm);
-  debug     = vm["debug"     ].as<bool>();
-  mtxinfo   = vm["mtxinfo"   ].as<bool>();
-  filter    = vm["filter"    ].as<bool>();
-  directed  = vm["directed"  ].as<int>();
-  nneuron   = vm["nneuron"   ].as<int>();
-  nlayer    = vm["nlayer"    ].as<int>();
-  nfeature  = vm["batch_size"].as<int>();
+  debug      = vm["debug"     ].as<bool>();
+  mtxinfo    = vm["mtxinfo"   ].as<bool>();
+  filter     = vm["filter"    ].as<bool>();
+  directed   = vm["directed"  ].as<int>();
+  nneuron    = vm["nneuron"   ].as<int>();
+  nlayer     = vm["nlayer"    ].as<int>();
+  batch_size = vm["batch_size"].as<int>();
 
   if (nneurons.count(nneuron) == 0 || nlayers.count(nlayer) == 0) {
     std::cout << "Error: Invalid neuron or layer input!\n";
@@ -71,7 +72,7 @@ int main(int argc, char** argv) {
   std::vector<graphblas::Index> col_indices, col_idx_mnist;
   std::vector<float> values, val_mnist, bias_v(nneuron, bias);
   std::vector<int> true_categories_idx;
-  std::vector<bool> true_categories(nfeature, 0);
+  std::vector<bool> true_categories(ntrain_sample, 0);
   graphblas::Index nrows, ncols, nvals, nrow_mnist, ncol_mnist, nval_mnist;
 
   std::vector<graphblas::Matrix<float>> Weights(nlayer, graphblas::Matrix<float>(nneuron, nneuron));
@@ -88,23 +89,16 @@ int main(int argc, char** argv) {
   // Read input features
   readMtx(input_features_file_path.c_str(), &row_idx_mnist, &col_idx_mnist, &val_mnist, &nrow_mnist, &ncol_mnist, &nval_mnist, directed, mtxinfo, NULL);
   std::cout << input_features_file_path << std::endl;
-  std::cout << "Batch size:        " << nrow_mnist << std::endl;
+  std::cout << "Batch size:        " << batch_size << std::endl;
   std::cout << "Number of neurons: " << ncol_mnist << std::endl;
   std::cout << "Number of layers:  " << nlayer << std::endl;
-  graphblas::Matrix<float> mnist(nrow_mnist, ncol_mnist);
-  CHECK(mnist.build(&row_idx_mnist, &col_idx_mnist, &val_mnist, nval_mnist, GrB_NULL, NULL));
-  CHECK(mnist.nrows(&nrows));
-  CHECK(mnist.ncols(&ncols));
-  CHECK(mnist.nvals(&nvals));
-  if (debug)
-    CHECK(mnist.print());
   
   // Read weights
   for (int layer = 0; layer < nlayer; layer++) {
     // Read mtx file of layers
     std::string file_name = layers_file_prefix + std::to_string(layer+1) + ".mtx";
-    readMtx(file_name.c_str(), &row_indices, &col_indices, &values, &nrows,
-        &ncols, &nvals, directed, mtxinfo, NULL);
+    readMtx(file_name.c_str(), &row_indices, &col_indices, &values,
+        &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
     std::cout << file_name << std::endl;
     
     // Build matrix
@@ -114,7 +108,7 @@ int main(int argc, char** argv) {
   }
 
   // Bias Vector
-  Vector<float> Biases(nrows);
+  Vector<float> Biases(nneuron);
   CHECK(Biases.fill(bias));
 
   /*!
@@ -125,45 +119,109 @@ int main(int argc, char** argv) {
   graphblas::Descriptor desc;
   CHECK(desc.loadArgs(vm));
 
-  Matrix<float> Y(nrow_mnist, ncol_mnist);
-  Y.dup(&mnist);
+  std::vector<bool> categories_val;
 
-  // Warmup
-  CpuTimer warmup;
-  warmup.Start();
-  graphblas::algorithm::dnn(nneuron, nfeature, mnist, Y, Weights, Biases, true, 
-      filter, &desc);
-  warmup.Stop();
+  for (graphblas::Index i = 0; i < ntrain_sample; i += batch_size) {
+    // Compute current batch size
+    graphblas::Index curr_batch_size = std::min(batch_size, ntrain_sample - i);
 
-  // Extract results
-  Vector<float> C(nfeature);
-  Vector<bool> Categories(nfeature);
-  CHECK(Categories.fill(false));
-  std::vector<bool> Categories_val;
-  std::vector<Index> Categories_ind; // If Categories is sparse
-  Index Categories_ind_size;
+    // Prepare tuple subset that fits into current batch
+    // e.g. suppose we are on second batch and want rows 15000-29999
+    //     row   col  val
+    //    [14999  20 0.625] x
+    //    [15000   4 0.625] keep, call this start
+    //      ...             keep
+    //    [29999   2 0.625] keep, call this start + length
+    //    [30000  15 0.625] x
 
-  graphblas::backend::GpuTimer gpu_check;
-  float gpu_check_time = 0.f;
-  gpu_check.Start();
+    int start  = -1;
+    int length = 0;
+    for (size_t j = 0; j < row_idx_mnist.size(); ++j) {
+      int curr_row = row_idx_mnist[j];
+      if (start == -1 && curr_row >= i)
+        start = j;
+      if (curr_row >= i && curr_row < i + curr_batch_size)
+        ++length;
+      if (curr_row >= i + curr_batch_size)
+        break;
+    }
+    if (length == 0) {
+      std::cout << "Error: Zero elements in current batch!\n";
+      return 0;
+    }
 
-  graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
-      graphblas::PlusMonoid<float>(), &Y, &desc);
+    std::vector<graphblas::Index> temp_row_idx;
+    std::vector<graphblas::Index> temp_col_idx;
+    std::vector<float> temp_val_idx;
+    temp_row_idx.assign(row_idx_mnist.begin()+start,
+        row_idx_mnist.begin()+start+length);
+    temp_col_idx.assign(col_idx_mnist.begin()+start,
+        col_idx_mnist.begin()+start+length);
+    temp_val_idx.assign(val_mnist.begin()+start,
+        val_mnist.begin()+start+length);
 
-  // Extract category pattern into dense vectors
-  // Note: Non-zero = true, zero = false
-  assign<bool, float>(&Categories, &C, GrB_NULL, true, GrB_ALL, nfeature,
-      &desc);
+    // Renumber tuple subset to start from 0
+    // e.g. [15000 4 0.625] keep, call this start
+    //        ...             keep
+    //      [29999 2 0.625] keep, call this start + length
+    // now becomes
+    //      [  0   4 0.625]
+    //        ...
+    //      [14999 2 0.625]
+    for (auto& val : temp_row_idx)
+      val -= i;
 
-  Categories_ind_size = nfeature;
-  CHECK(Categories.extractTuples(&Categories_val, &Categories_ind_size));
+    Matrix<float> mnist(curr_batch_size, ncol_mnist);
+    CHECK(mnist.build(&temp_row_idx, &temp_col_idx, &temp_val_idx, length,
+        GrB_NULL, NULL));
+    CHECK(mnist.nrows(&nrows));
+    CHECK(mnist.ncols(&ncols));
+    CHECK(mnist.nvals(&nvals));
+    if (debug)
+      CHECK(mnist.print());
 
-  gpu_check.Stop();
-  gpu_check_time += gpu_check.ElapsedMillis();
-  std::cout << "Check time: " << gpu_check_time << std::endl;
+    Matrix<float> Y(curr_batch_size, ncol_mnist);
+    Y.dup(&mnist);
+
+    // Warmup
+    CpuTimer warmup;
+    warmup.Start();
+    graphblas::algorithm::dnn(nneuron, curr_batch_size, mnist, Y, Weights,
+        Biases, filter, &desc);
+    warmup.Stop();
+
+    // Extract results
+    Vector<float> C(curr_batch_size);
+    Vector<bool> categories(curr_batch_size);
+    CHECK(categories.fill(false));
+    std::vector<bool> temp_categories_val;
+    Index categories_ind_size;
+
+    graphblas::backend::GpuTimer gpu_check;
+    float gpu_check_time = 0.f;
+    gpu_check.Start();
+
+    graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+        graphblas::PlusMonoid<float>(), &Y, &desc);
+
+    // Extract category pattern into dense vectors
+    // Note: Non-zero = true, zero = false
+    assign<bool, float>(&categories, &C, GrB_NULL, true, GrB_ALL,
+        curr_batch_size, &desc);
+
+    categories_ind_size = curr_batch_size;
+    CHECK(categories.extractTuples(&temp_categories_val, &categories_ind_size));
+
+    gpu_check.Stop();
+    gpu_check_time += gpu_check.ElapsedMillis();
+    std::cout << "Check time: " << gpu_check_time << std::endl;
+
+    categories_val.insert(categories_val.end(), temp_categories_val.begin(),
+        temp_categories_val.end());
+  }
 
   // Check correctness (not timed)
-  BOOST_ASSERT_LIST(true_categories, Categories_val, nfeature);
+  BOOST_ASSERT_LIST(true_categories, categories_val, ntrain_sample);
 
   // // Benchmark
   // CpuTimer dnn_gpu_timer;
