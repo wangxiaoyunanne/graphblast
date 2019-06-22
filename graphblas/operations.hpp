@@ -32,7 +32,7 @@ Info mxm(Matrix<c>*       C,
 
   // Dimension check
   // Case 1: A *B
-  CHECK(checkDimRowCol(B, A,    "B.nrows != A.ncols"));
+  CHECK(checkDimRowCol(B, A,    "A.ncols != B.nrows"));
   CHECK(checkDimRowRow(A, C,    "A.nrows != C.nrows"));
   CHECK(checkDimColCol(B, C,    "B.ncols != C.ncols"));
   CHECK(checkDimRowRow(C, mask, "C.nrows != mask.nrows"));
