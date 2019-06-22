@@ -127,6 +127,7 @@ int main(int argc, char** argv) {
 
   std::vector<bool> categories_val;
   float total_infer_time = 0.f;
+  float total_check_time = 0.f;
 
   for (graphblas::Index i = 0; i < ntrain_sample; i += batch_size) {
     // Compute current batch size
@@ -217,7 +218,6 @@ int main(int argc, char** argv) {
 
     graphblas::backend::GpuTimer gpu_check;
     float gpu_check_time = 0.f;
-    float total_check_time = 0.f;
     gpu_check.Start();
 
     if (transpose) {
