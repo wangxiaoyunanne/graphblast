@@ -126,6 +126,7 @@ int main(int argc, char** argv) {
   CHECK(desc.loadArgs(vm));
 
   std::vector<bool> categories_val;
+  float total_infer_time = 0.f;
 
   for (graphblas::Index i = 0; i < ntrain_sample; i += batch_size) {
     // Compute current batch size
@@ -203,8 +204,8 @@ int main(int argc, char** argv) {
     // Warmup
     CpuTimer warmup;
     warmup.Start();
-    graphblas::algorithm::dnn(nneuron, curr_batch_size, mnist, Y, Weights,
-        Biases, filter, transpose, &desc);
+    float gpu_infer_time = graphblas::algorithm::dnn(nneuron, curr_batch_size,
+        mnist, Y, Weights, Biases, filter, transpose, &desc);
     warmup.Stop();
 
     // Extract results
@@ -216,10 +217,18 @@ int main(int argc, char** argv) {
 
     graphblas::backend::GpuTimer gpu_check;
     float gpu_check_time = 0.f;
+    float total_check_time = 0.f;
     gpu_check.Start();
 
-    graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
-        graphblas::PlusMonoid<float>(), &Y, &desc);
+    if (transpose) {
+      CHECK(desc.toggle(GrB_INP0));
+      graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+          graphblas::PlusMonoid<float>(), &Y, &desc);
+      CHECK(desc.toggle(GrB_INP0));
+    } else {
+      graphblas::reduce<float, float, float>(&C, GrB_NULL, GrB_NULL,
+          graphblas::PlusMonoid<float>(), &Y, &desc);
+    }
 
     // Extract category pattern into dense vectors
     // Note: Non-zero = true, zero = false
@@ -231,7 +240,11 @@ int main(int argc, char** argv) {
 
     gpu_check.Stop();
     gpu_check_time += gpu_check.ElapsedMillis();
+    std::cout << "Infer time: " << gpu_infer_time << std::endl;
     std::cout << "Check time: " << gpu_check_time << std::endl;
+
+    total_infer_time += gpu_infer_time;
+    total_check_time += gpu_check_time;
 
     categories_val.insert(categories_val.end(), temp_categories_val.begin(),
         temp_categories_val.end());
@@ -239,6 +252,9 @@ int main(int argc, char** argv) {
 
   // Check correctness (not timed)
   BOOST_ASSERT_LIST(true_categories, categories_val, ntrain_sample);
+
+  std::cout << "Total infer time: " << total_infer_time << std::endl;
+  std::cout << "Total check time: " << total_check_time << std::endl;
 
   // // Benchmark
   // CpuTimer dnn_gpu_timer;

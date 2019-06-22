@@ -122,7 +122,7 @@ Info reduceInner(T*                     val,
   return GrB_SUCCESS;
 }
 
-// TODO(@ctcyang): Dense matrix-to-Dense matrix variant
+// TODO(@ctcyang): Dense matrix-to-Dense vector across matrix rows variant
 template <typename W, typename a, typename M,
           typename BinaryOpT,     typename MonoidT>
 Info reduceInner(DenseVector<W>*       w,
@@ -135,7 +135,7 @@ Info reduceInner(DenseVector<W>*       w,
   return GrB_SUCCESS;
 }
 
-// Sparse matrix-to-Dense vector variant
+// Sparse matrix-to-Dense vector across matrix rows variant
 template <typename W, typename a, typename M,
           typename BinaryOpT,     typename MonoidT>
 Info reduceInner(DenseVector<W>*        w,
@@ -155,6 +155,31 @@ Info reduceInner(DenseVector<W>*        w,
         A->d_csrVal_, A->nrows_, desc);
   }
 
+  return GrB_SUCCESS;
+}
+
+// TODO(@ctcyang): Dense matrix-to-Dense vector across matrix columns variant
+template <typename W, typename a, typename M,
+          typename BinaryOpT,     typename MonoidT>
+Info reduceInnerTranspose(DenseVector<W>*       w,
+                          const Vector<M>*      mask,
+                          BinaryOpT             accum,
+                          MonoidT               op,
+                          const DenseMatrix<a>* A,
+                          Descriptor*           desc) {
+  std::cout << "Error: Dense reduce matrix-to-vector not implemented yet!\n";
+  return GrB_SUCCESS;
+}
+
+// Sparse matrix-to-Dense vector across matrix columns variant
+template <typename W, typename a, typename M,
+          typename BinaryOpT,     typename MonoidT>
+Info reduceInnerTranspose(DenseVector<W>*        w,
+                          const Vector<M>*       mask,
+                          BinaryOpT              accum,
+                          MonoidT                op,
+                          const SparseMatrix<a>* A,
+                          Descriptor*            desc) {
   return GrB_SUCCESS;
 }
 }  // namespace backend

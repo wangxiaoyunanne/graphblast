@@ -31,7 +31,7 @@ auto as_integer(Enumeration const value)
 
 
 template <typename T>
-Info dnn ( 
+float dnn ( 
   int numNeurons,               // # of neurons
   int numFeatures,              // # of features
   Matrix<T>& Y0,                // Input features: nfeatures-by-nneurons
@@ -79,11 +79,11 @@ Info dnn (
 
     // Null mask and accum, and + semiring for C = A + B
     if (!transpose)
-      CHECK(desc->toggle(graphblas::GrB_INP1));
+      CHECK(desc->toggle(graphblas::GrB_INP0));
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, GreaterPlusSemiring<T>(),
         &Y, &Bias, desc);
     if (!transpose)
-      CHECK(desc->toggle(graphblas::GrB_INP1));
+      CHECK(desc->toggle(graphblas::GrB_INP0));
 
     // Null mask and accum, and >0 semiring for ReLU: C = max_elem(A, 0)
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(),
@@ -99,9 +99,8 @@ Info dnn (
   }
   gpu_infer.Stop();
   gpu_infer_time += gpu_infer.ElapsedMillis();
-  std::cout << "Inference time: " << gpu_infer_time << std::endl;
 
-  return GrB_SUCCESS;
+  return gpu_infer_time;
 }
 
 template <typename T>
