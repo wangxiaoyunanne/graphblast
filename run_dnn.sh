@@ -19,7 +19,7 @@ do
 done
 
 echo 16384 120
-./bin/gdnn --mtxinfo 0 --directed 0 --debug 0 --filter 1 --transpose 1 --nlayer 120 --nneuron 16384 --batch_size 60000 ${datadir}
+./bin/gdnn --mtxinfo 0 --directed 0 --debug 0 --filter 1 --transpose 1 --nlayer 120 --nneuron 16384 --batch_size 30000 ${datadir}
 echo 16384 480
 ./bin/gdnn --mtxinfo 0 --directed 0 --debug 0 --filter 1 --transpose 1 --nlayer 480 --nneuron 16384 --batch_size 30000 ${datadir}
 echo 16384 1920
