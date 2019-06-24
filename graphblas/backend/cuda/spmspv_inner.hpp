@@ -65,6 +65,7 @@ Info spmspvApspieMerge(Index*       w_ind,
                        BinaryOpT    accum,
                        SemiringT    op,
                        Index        A_nrows,
+                       Index        A_ncols,
                        Index        A_nvals,
                        const Index* A_csrRowPtr,
                        const Index* A_csrColInd,
@@ -72,6 +73,8 @@ Info spmspvApspieMerge(Index*       w_ind,
                        const Index* u_ind,
                        const U*     u_val,
                        const Index* u_nvals,
+                       Index        u_nsize,
+                       Index        w_nsize,
                        Descriptor*  desc) {
   // Get descriptor parameters for nthreads
   Desc_value ta_mode, tb_mode, nt_mode;
@@ -93,18 +96,16 @@ Info spmspvApspieMerge(Index*       w_ind,
 
   // Step 0) Must compute how many elements are in the selected region in the
   // worst-case. This is a global reduce.
-  //  -> d_temp_nvals |V|
-  //  -> d_scan       |V|+1
-  int    size        = static_cast<float>(A_nvals)*desc->memusage()+1;
-  void* d_temp_nvals = reinterpret_cast<void*>(w_ind);
-  void* d_scan       = reinterpret_cast<void*>(w_val);
-  void* d_temp       = desc->d_buffer_+2*A_nrows*sizeof(Index);
-
-  if (desc->struconly())
-    d_scan = desc->d_buffer_+(A_nrows+size)*sizeof(Index);
+  //  -> d_temp_nvals |u_nsize|
+  //  -> d_scan       |u_nsize|+1
+  //  -> d_temp
+  int   size         = static_cast<float>(A_nvals)*desc->memusage()+1;
+  void* d_temp_nvals = desc->d_buffer_;
+  void* d_scan       = desc->d_buffer_+   u_nsize   *sizeof(Index);
+  void* d_temp       = desc->d_buffer_+(2*u_nsize+1)*sizeof(Index);
 
   if (desc->debug()) {
-    assert(*u_nvals <= A_nrows);
+    assert(*u_nvals <= u_nsize);
     std::cout << "NT: " << NT.x << " NB: " << NB.x << std::endl;
   }
 
@@ -127,7 +128,7 @@ Info spmspvApspieMerge(Index*       w_ind,
   }
 
   if (desc->struconly() && !desc->sort())
-    CUDA_CALL(cudaMemset(w_ind, 0, A_nrows*sizeof(Index)));
+    CUDA_CALL(cudaMemset(w_ind, 0, w_nsize*sizeof(Index)));
 
   // No neighbors is one possible stopping condition
   if (*w_nvals == 0)
@@ -144,18 +145,21 @@ Info spmspvApspieMerge(Index*       w_ind,
   // Step 1-4) custom kernel method (1 single kernel)
   //   modify spmvCsrIndirectBinary() to stop after expand phase
   //   output: 1) expanded index array 2) expanded value array
-  //   -> d_csrSwapInd |E| x desc->memusage()
-  //   -> d_csrSwapVal |E| x desc->memusage()
+  //  -> d_temp_nvals |u_nsize|
+  //  -> d_scan       |u_nsize|+1
+  //  -> d_csrSwapInd |E| x desc->memusage()
+  //  -> d_csrSwapVal |E| x desc->memusage()
+  //  -> d_temp
   void* d_csrSwapInd;
   void* d_csrSwapVal;
 
   if (desc->struconly()) {
-    d_csrSwapInd = desc->d_buffer_+   A_nrows      *sizeof(Index);
-    d_temp       = desc->d_buffer_+(  A_nrows+size)*sizeof(Index);
+    d_csrSwapInd = desc->d_buffer_+   u_nsize      *sizeof(Index);
+    d_temp       = desc->d_buffer_+(  u_nsize+size)*sizeof(Index);
   } else {
-    d_csrSwapInd = desc->d_buffer_+ 2*A_nrows        *sizeof(Index);
-    d_csrSwapVal = desc->d_buffer_+(2*A_nrows+  size)*sizeof(Index);
-    d_temp       = desc->d_buffer_+(2*A_nrows+2*size)*sizeof(Index);
+    d_csrSwapInd = desc->d_buffer_+(2*u_nsize+1       )*sizeof(Index);
+    d_csrSwapVal = desc->d_buffer_+(2*u_nsize+1+  size)*sizeof(Index);
+    d_temp       = desc->d_buffer_+(2*u_nsize+1+2*size)*sizeof(Index);
   }
 
   if (!desc->struconly_) {
@@ -219,11 +223,12 @@ Info spmspvApspieMerge(Index*       w_ind,
   int endbit = sizeof(Index)*8;
   if (desc->endbit())
     endbit = std::min(endbit,
-        static_cast<int>(log2(static_cast<float>(A_nrows)))+1);
+        static_cast<int>(log2(static_cast<float>(std::max(A_nrows, 
+        A_ncols))))+1);
 
   if (desc->struconly()) {
     if (desc->sort()) {
-      d_csrTempInd = desc->d_buffer_+(A_nrows+size)*sizeof(Index);
+      d_csrTempInd = desc->d_buffer_+(u_nsize+size)*sizeof(Index);
 
       if (!desc->split())
         CUDA_CALL(cub::DeviceRadixSort::SortKeys(NULL, temp_storage_bytes,
@@ -246,8 +251,8 @@ Info spmspvApspieMerge(Index*       w_ind,
             *w_nvals);
     }
   } else {
-    d_csrTempInd = desc->d_buffer_+(2*A_nrows+2*size)*sizeof(Index);
-    d_csrTempVal = desc->d_buffer_+(2*A_nrows+3*size)*sizeof(Index);
+    d_csrTempInd = desc->d_buffer_+(2*u_nsize+2*size)*sizeof(Index);
+    d_csrTempVal = desc->d_buffer_+(2*u_nsize+3*size)*sizeof(Index);
 
     if (!desc->split())
       CUDA_CALL(cub::DeviceRadixSort::SortPairs(NULL, temp_storage_bytes,
@@ -289,7 +294,7 @@ Info spmspvApspieMerge(Index*       w_ind,
       NB.x = (*w_nvals+nt-1)/nt;
       scatter<<<NB, NT>>>(w_ind, reinterpret_cast<Index*>(d_csrSwapInd),
           (Index)1, *w_nvals);
-      *w_nvals = A_nrows;
+      *w_nvals = w_nsize;
 
       if (desc->debug())
         printDevice("scatter", w_ind, *w_nvals);

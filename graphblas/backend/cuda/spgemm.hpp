@@ -126,7 +126,8 @@ Info cusparse_spgemm(SparseMatrix<c>*       C,
   if (C_nvals > C->ncapacity_) {
     if (desc->debug())
       std::cout << "Increasing matrix C size: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
-    C->ncapacity_ = C_nvals*C->kresize_ratio_;
+    C->ncapacity_ = std::max(C_nvals,
+        static_cast<Index>(C_nvals*C->kresize_ratio_));
     if (C->d_csrColInd_ != NULL) {
       CUDA_CALL(cudaFree(C->d_csrColInd_));
       CUDA_CALL(cudaFree(C->d_csrVal_));
@@ -328,7 +329,8 @@ Info cusparse_spgemm2(SparseMatrix<c>*       C,
   if (C_nvals > C->ncapacity_) {
     if (desc->debug())
       std::cout << "Increasing matrix C size: " << C->ncapacity_ << " -> " << C_nvals << std::endl;
-    C->ncapacity_ = C_nvals*C->kresize_ratio_;
+    C->ncapacity_ = std::max(C_nvals,
+        static_cast<Index>(C_nvals*C->kresize_ratio_));
     if (C->d_csrColInd_ != NULL) {
       CUDA_CALL(cudaFree(C->d_csrColInd_));
       CUDA_CALL(cudaFree(C->d_csrVal_));

@@ -108,8 +108,8 @@ class SparseMatrix {
   Info validate();  // validates CSR structure on CPU
 
  private:
-  const T kcap_ratio_    = 1.2f;  // Note: nasty bug if this is set to 1.f!
-  const T kresize_ratio_ = 1.2f;
+  const T kcap_ratio_    = 1.f;  // Note: nasty bug if this is set to 1.f!
+  const T kresize_ratio_ = 1.f;
 
   Index nrows_;
   Index ncols_;
@@ -694,8 +694,8 @@ Info SparseMatrix<T>::rebuild(T identity, Descriptor* desc) {
   // 2) Calculate segmented reduction
   // Note: Must store total into d_csrRowPtr_+nrows_ or this will not result in
   // valid CSR data structure
-  reduceMatrixCommon(d_scan, NULL, PlusMonoid<Index>(), d_csrRowPtr_, d_flag,
-      nrows_, desc);
+  CHECK(reduceMatrixCommon(d_scan, NULL, PlusMonoid<Index>(), d_csrRowPtr_,
+      d_flag, nrows_, desc));
   mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(d_scan, nrows_, (Index) 0,
       mgpu::plus<Index>(),  // NOLINT(build/include_what_you_use)
       d_csrRowPtr_+nrows_, &temp, d_csrRowPtr_, temp_ind+2*nvals_,
@@ -736,7 +736,7 @@ Info SparseMatrix<T>::rebuild(T identity, Descriptor* desc) {
 template <typename T>
 Info SparseMatrix<T>::allocateCpu() {
   // Allocate
-  ncapacity_ = kcap_ratio_*nvals_;
+  ncapacity_ = std::max(nvals_, static_cast<Index>(kcap_ratio_*nvals_));
 
   // Host malloc
   if (nrows_ > 0 && h_csrRowPtr_ == NULL)

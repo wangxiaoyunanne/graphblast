@@ -48,34 +48,44 @@ Info spmspvMerge(SparseVector<W>*       w,
     printState(use_mask, use_accum, use_scmp, use_repl, use_tran);
   }
 
-  // Transpose (default is CSC):
+  // Default: CSC
+  //     w    =         A         x    u
+  //  A.nrows   A.nrows x A.ncols   A.ncols
+  //
+  // If transpose is set, use CSR
+  //    w^T   =   u^T   x         A
+  //  A.ncols   A.nrows   A.nrows x A.ncols
   const Index* A_csrRowPtr  = (!use_tran) ? A->d_cscColPtr_ : A->d_csrRowPtr_;
   const Index* A_csrColInd  = (!use_tran) ? A->d_cscRowInd_ : A->d_csrColInd_;
   const a*     A_csrVal     = (!use_tran) ? A->d_cscVal_    : A->d_csrVal_;
-  const Index  A_nrows      = (!use_tran) ? A->ncols_       : A->nrows_;
+  const Index  u_nsize      = (!use_tran) ? A->ncols_       : A->nrows_;
+  const Index  w_nsize      = (!use_tran) ? A->nrows_       : A->ncols_;
   const Index* Ah_csrRowPtr = (!use_tran) ? A->h_cscColPtr_ : A->h_csrRowPtr_;
+  const Index  A_nrows = A->nrows_;
+  const Index  A_ncols = A->ncols_;
 
   // temp_ind and temp_val need |V| memory for masked case, so just allocate
   // this much memory for now. TODO(@ctcyang): optimize for memory
   int size = static_cast<float>(A->nvals_)*desc->memusage()+1;
+  int uw_size = std::max(w_nsize, u_nsize);
   if (desc->struconly())
-    desc->resize((2*A_nrows+2*size)*std::max(sizeof(Index), sizeof(T)),
+    desc->resize((2*uw_size+2*size+1)*std::max(sizeof(Index), sizeof(T)),
         "buffer");
   else
-    desc->resize((2*A_nrows+4*size)*std::max(sizeof(Index), sizeof(T)),
+    desc->resize((2*uw_size+4*size+1)*std::max(sizeof(Index), sizeof(T)),
         "buffer");
 
   // Only difference between masked and unmasked versions if whether
   // eWiseMult() is called afterwards or not
   if (use_mask) {
-    // temp_ind and temp_val need |V| memory
+    // temp_ind and temp_val need |w_nsize| memory
     Index* temp_ind   = reinterpret_cast<Index*>(desc->d_buffer_);
-    a*     temp_val   = reinterpret_cast<a*>(desc->d_buffer_)+A_nrows;
+    a*     temp_val   = reinterpret_cast<a*>(desc->d_buffer_)+uw_size;
     Index  temp_nvals = 0;
 
-    spmspvApspieMerge(temp_ind, temp_val, &temp_nvals, NULL, op, A_nrows,
-        A->nvals_, A_csrRowPtr, A_csrColInd, A_csrVal, u->d_ind_, u->d_val_,
-        &u->nvals_, desc);
+    spmspvApspieMerge(temp_ind, temp_val, &temp_nvals, NULL, op, A_nrows, 
+        A_ncols, A->nvals_, A_csrRowPtr, A_csrColInd, A_csrVal, u->d_ind_,
+        u->d_val_, &u->nvals_, u_nsize, w_nsize, desc);
 
     if (temp_nvals == 0) {
       if (desc->debug())
@@ -113,34 +123,34 @@ Info spmspvMerge(SparseVector<W>*       w,
         if (use_scmp)
           assignDenseDenseMaskedKernel<true, true, true><<<NB, NT>>>(temp_ind,
               temp_nvals, (mask->dense_).d_val_, NULL, (Index)0,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL), w_nsize);
         else
           assignDenseDenseMaskedKernel<false, true, true><<<NB, NT>>>(temp_ind,
               temp_nvals, (mask->dense_).d_val_, NULL, (Index)0,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL), w_nsize);
 
         if (desc->debug()) {
           printDevice("mask", (mask->dense_).d_val_, A_nrows);
-          printDevice("temp_ind", temp_ind, A_nrows);
+          printDevice("temp_ind", temp_ind, w_nsize);
         }
 
         // Turn dense vector into sparse
-        desc->resize((4*A_nrows)*std::max(sizeof(Index), sizeof(T)), "buffer");
-        Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+2*A_nrows;
-        Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+3*A_nrows;
+        desc->resize((4*w_nsize)*std::max(sizeof(Index), sizeof(T)), "buffer");
+        Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+2*w_nsize;
+        Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+3*w_nsize;
 
-        mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(temp_ind, A_nrows,
+        mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(temp_ind, w_nsize,
             (Index)0, mgpu::plus<Index>(), reinterpret_cast<Index*>(0),
             &w->nvals_, d_scan, d_temp, *(desc->d_context_));
 
         if (desc->debug()) {
-          printDevice("d_scan", d_scan, A_nrows);
+          printDevice("d_scan", d_scan, w_nsize);
           std::cout << "Pre-assign frontier size: " << temp_nvals <<std::endl;
           std::cout << "Frontier size: " << w->nvals_ << std::endl;
         }
 
         streamCompactDenseKernel<<<NB, NT>>>(w->d_ind_, d_scan, (W)1, temp_ind,
-            A_nrows);
+            w_nsize);
 
         if (desc->debug())
           printDevice("w_ind", w->d_ind_, w->nvals_);
@@ -152,11 +162,11 @@ Info spmspvMerge(SparseVector<W>*       w,
           if (use_scmp)
             assignSparseKernel<true, true, true><<<NB, NT>>>(temp_ind,
               temp_nvals, (mask->dense_).d_val_, NULL, (Index)-1,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL), w_nsize);
           else
             assignSparseKernel<false, true, true><<<NB, NT>>>(temp_ind,
               temp_nvals, (mask->dense_).d_val_, NULL, (Index)-1,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL),w_nsize);
         } else if (mask_vec_type == GrB_SPARSE) {
           std::cout << "Spmspv Sparse Mask\n";
           std::cout << "Error: Feature not implemented yet!\n";
@@ -165,15 +175,18 @@ Info spmspvMerge(SparseVector<W>*       w,
         }
 
         if (desc->debug()) {
-          printDevice("mask", (mask->dense_).d_val_, A_nrows);
+          printDevice("mask", (mask->dense_).d_val_, w_nsize);
           printDevice("temp_ind", temp_ind, temp_nvals);
         }
 
         // Prune 0.f's from vector
-        desc->resize((4*A_nrows)*std::max(sizeof(Index), sizeof(T)), "buffer");
-        Index* d_flag = reinterpret_cast<Index*>(desc->d_buffer_)+  A_nrows;
-        Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+2*A_nrows;
-        Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+3*A_nrows;
+        desc->resize((2*uw_size + 2*w_nsize)*std::max(sizeof(Index), sizeof(T)),
+            "buffer");
+        Index* d_flag = reinterpret_cast<Index*>(desc->d_buffer_)+uw_size;
+        Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+uw_size+
+            w_nsize;
+        Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+uw_size+
+            2*w_nsize;
 
         updateFlagKernel<<<NB, NT>>>(d_flag, -1, temp_ind, temp_nvals);
         mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(d_flag, temp_nvals, (Index)0,
@@ -202,11 +215,11 @@ Info spmspvMerge(SparseVector<W>*       w,
         if (use_scmp)
           assignSparseKernel<true, true, true><<<NB, NT>>>(temp_ind, temp_val,
               temp_nvals, (mask->dense_).d_val_, NULL, (U)0.f,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL), w_nsize);
         else
           assignSparseKernel<false, true, true><<<NB, NT>>>(temp_ind, temp_val,
               temp_nvals, (mask->dense_).d_val_, NULL, (U)0.f,
-              reinterpret_cast<Index*>(NULL), A_nrows);
+              reinterpret_cast<Index*>(NULL), w_nsize);
       } else if (mask_vec_type == GrB_SPARSE) {
         std::cout << "Spmspv Sparse Mask\n";
         std::cout << "Error: Feature not implemented yet!\n";
@@ -215,16 +228,19 @@ Info spmspvMerge(SparseVector<W>*       w,
       }
 
       if (desc->debug()) {
-        printDevice("mask", (mask->dense_).d_val_, A_nrows);
+        printDevice("mask", (mask->dense_).d_val_, w_nsize);
         printDevice("temp_ind", temp_ind, temp_nvals);
         printDevice("temp_val", temp_val, temp_nvals);
       }
 
       // Prune 0.f's from vector
-      desc->resize((5*A_nrows)*std::max(sizeof(Index), sizeof(a)), "buffer");
-      Index* d_flag = reinterpret_cast<Index*>(desc->d_buffer_)+2*A_nrows;
-      Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+3*A_nrows;
-      Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+4*A_nrows;
+      desc->resize((2*uw_size + 3*w_nsize)*std::max(sizeof(Index), sizeof(a)),
+          "buffer");
+      Index* d_flag = reinterpret_cast<Index*>(desc->d_buffer_)+2*uw_size;
+      Index* d_scan = reinterpret_cast<Index*>(desc->d_buffer_)+2*uw_size+
+          w_nsize;
+      Index* d_temp = reinterpret_cast<Index*>(desc->d_buffer_)+2*uw_size+
+          2*w_nsize;
 
       updateFlagKernel<<<NB, NT>>>(d_flag, (a)0, temp_val, temp_nvals);
       mgpu::ScanPrealloc<mgpu::MgpuScanTypeExc>(d_flag, temp_nvals, (Index)0,
@@ -249,8 +265,8 @@ Info spmspvMerge(SparseVector<W>*       w,
     }
   } else {
     spmspvApspieMerge(w->d_ind_, w->d_val_, &w->nvals_, NULL, op, A_nrows,
-        A->nvals_, A_csrRowPtr, A_csrColInd, A_csrVal, u->d_ind_, u->d_val_,
-        &u->nvals_, desc);
+        A_ncols, A->nvals_, A_csrRowPtr, A_csrColInd, A_csrVal, u->d_ind_,
+        u->d_val_, &u->nvals_, u_nsize, w_nsize, desc);
   }
   w->need_update_ = true;
   return GrB_SUCCESS;
