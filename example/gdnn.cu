@@ -129,6 +129,9 @@ int main(int argc, char** argv) {
   float total_infer_time = 0.f;
   float total_check_time = 0.f;
 
+  // Warmup
+  CpuTimer warmup;
+  warmup.Start();
   for (graphblas::Index i = 0; i < ntrain_sample; i += batch_size) {
     // Compute current batch size
     graphblas::Index curr_batch_size = std::min(batch_size, ntrain_sample - i);
@@ -202,9 +205,6 @@ int main(int argc, char** argv) {
       Y.nnew(curr_batch_size, ncol_mnist);
     Y.dup(&mnist);
 
-    // Warmup
-    CpuTimer warmup;
-    warmup.Start();
     float gpu_infer_time = graphblas::algorithm::dnn(nneuron, curr_batch_size,
         mnist, Y, Weights, Biases, filter, transpose, &desc);
     warmup.Stop();
@@ -249,10 +249,13 @@ int main(int argc, char** argv) {
     categories_val.insert(categories_val.end(), temp_categories_val.begin(),
         temp_categories_val.end());
   }
+  warmup.Stop();
 
   // Check correctness (not timed)
   BOOST_ASSERT_LIST(true_categories, categories_val, ntrain_sample);
 
+  std::cout << "Total time (build, infer, check): " 
+      << warmup.ElapsedMillis() << std::endl;
   std::cout << "Total infer time: " << total_infer_time << std::endl;
   std::cout << "Total check time: " << total_check_time << std::endl;
 
