@@ -2,6 +2,12 @@
 #define GRAPHBLAS_BACKEND_CUDA_OPERATIONS_HPP_
 
 #include <vector>
+#include <curand.h>
+#include <curand_kernel.h>
+
+#include "graphblas/backend/cuda/util.hpp"
+#include "graphblas/backend/cuda/kernels/generate_random_integer.hpp"
+
 
 namespace graphblas {
 namespace backend {
@@ -1257,6 +1263,107 @@ Info applyVxm(Vector<W>*       w,
   }
   return GrB_SUCCESS;
 }
+
+template <typename T>
+Info prune(float            perc,
+           Matrix<T>*       A,
+           Descriptor*      desc) {
+
+  // Number of values and zeros
+  Index num_vals;
+  CHECK(A->nvals(&num_vals));
+  Index num_zeros = (Index)(num_vals * perc);
+  std::cout << "Number of zeros: " << num_zeros << std::endl;
+  size_t size = num_zeros * sizeof(Index);
+
+  // Curand related
+  curandGenerator_t gen;
+  curandState_t* states;
+  CUDA_CALL(cudaMalloc((void**)&states, num_zeros * sizeof(curandState_t)));
+
+  // Block size and Grid size for generating random numbers.
+  dim3 block(512);
+  dim3 grid((num_zeros + 511) / 512);
+
+  // Resize the descriptor's buffer
+  CHECK(desc->resize(size, "buffer"));
+
+  // Get random integers index and store in desc->d_buffer_
+  initCurandStates<<<grid, block>>>(states, 1234U, num_zeros);
+  CUDA_CALL(cudaDeviceSynchronize());
+  Index *d_tmp = (Index *)desc->d_buffer_;
+  generateRandomIntegersUniform<<<grid, block>>>(states, d_tmp, num_zeros, num_vals);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  Index *tmp = (Index *)malloc(size);
+  cudaMemcpy(tmp, d_tmp, size, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaDeviceSynchronize());
+  std::cout << "********" << std::endl;
+  std::cout << num_vals << ", " << num_zeros << std::endl;
+  std::cout << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << ", " << tmp[3] << ", " << tmp[4] << ", " << tmp[5] << std::endl;
+  std::cout << "^^^^^^^^" << std::endl;
+
+///
+  generateRandomIntegersUniform<<<grid, block>>>(states, d_tmp, num_zeros, num_vals);
+  CUDA_CALL(cudaDeviceSynchronize());
+  cudaMemcpy(tmp, d_tmp, size, cudaMemcpyDeviceToHost);
+  CUDA_CALL(cudaDeviceSynchronize());
+  std::cout << "********" << std::endl;
+  std::cout << num_vals << ", " << num_zeros << std::endl;
+  std::cout << tmp[0] << ", " << tmp[1] << ", " << tmp[2] << ", " << tmp[3] << ", " << tmp[4] << ", " << tmp[5] << std::endl;
+  std::cout << "^^^^^^^^" << std::endl;
+///
+
+
+  free(tmp);
+
+  // Assign it to the matrix
+  scatterKernel<<<grid, block>>>(A->sparse_.d_csrVal_, num_vals, d_tmp, num_zeros, (T)0);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  cudaFree(states);
+
+  return GrB_SUCCESS;
+}
+
+template <typename v>
+Info prune(float            perc,
+           Vector<v>*       V,
+           Descriptor*      desc) {
+
+    // Number of values and zeros
+  Index num_vals;
+  CHECK(V->nvals(&num_vals));
+  Index num_zeros = (Index)(num_vals * perc);
+  size_t size = num_zeros * sizeof(Index);
+
+  // Curand related
+  curandGenerator_t gen;
+  curandState_t* states;
+  CUDA_CALL(cudaMalloc((void**)&states, num_zeros * sizeof(curandState_t)));
+
+  // Block size and Grid size for generating random numbers.
+  dim3 block(512);
+  dim3 grid((num_zeros + 511) / 512);
+
+  // Resize the descriptor's buffer
+  CHECK(desc->resize(size, "buffer"));
+
+  // Get random integers index and store in desc->d_buffer_
+  initCurandStates<<<grid, block>>>(states, 1234U, num_zeros);
+  CUDA_CALL(cudaDeviceSynchronize());
+  Index *d_tmp = (Index *)desc->d_buffer_;
+  generateRandomIntegersUniform<<<grid, block>>>(states, d_tmp, num_zeros, num_vals);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  // Assign it to the matrix
+  scatterKernel<<<grid, block>>>(V->sparse_.d_csrVal_, num_vals, d_tmp, num_zeros, (T)0);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  cudaFree(states);
+}
+
+
 }  // namespace backend
 }  // namespace graphblas
 

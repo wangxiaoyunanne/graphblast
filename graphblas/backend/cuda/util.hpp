@@ -14,8 +14,15 @@
   cudaError err = cudaThreadSynchronize();                              \
   if (cudaSuccess != err) {                                             \
      fprintf(stderr, "Cuda error in file '%s' in line %i : %s.\n",      \
-                 __FILE__, __LINE__, cudaGetErrorString(err));          \
+                __FILE__, __LINE__, cudaGetErrorString(err));           \
      exit(EXIT_FAILURE);                                                \
+  } } while (0)
+
+#define CURAND_CALL(x) do {                                             \
+  if ((x)!=CURAND_STATUS_SUCCESS) {                                     \
+      fprintf(stderr, "CURAND error in file '%s' in line %i.\n",        \
+                __FILE__, __LINE__);                                    \
+      exit(EXIT_FAILURE);                                               \
   } } while (0)
 
 #include <cstdlib>

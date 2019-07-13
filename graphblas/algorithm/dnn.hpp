@@ -67,7 +67,8 @@ float dnn (
   float gpu_infer_time = 0.f;
   gpu_infer.Start();
   for (int layer = 0; layer < nlayers; layer++) {
-    if (desc->descriptor_.debug())
+    // if (desc->descriptor_.debug())
+    if (1)
       std::cout << "=====Layer " << layer + 1 << "=====\n";
 
     if (transpose)
@@ -89,9 +90,20 @@ float dnn (
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMaximumSemiring<T>(),
         &Y, 0.f, desc);
 
+    // // Prune non-zero values with a percentage, e.g. perc = 0.1 means 10% of non-zero values will be pruned
+    Index tmp;
+    CHECK(Y.nvals(&tmp));
+    std::cout << "Before pruning: " << tmp << std::endl;
+    if (layer >= 80)
+      prune<T>(0.6f, &Y, desc);
+    CHECK(Y.nvals(&tmp));
+    std::cout << "After pruning: " << tmp << std::endl;
+
     // Filter out 0's from sparse matrix
     if (filter)
       CHECK(Y.rebuild(0.f, desc));
+    CHECK(Y.nvals(&tmp));
+    std::cout << "After rebuild: " << tmp << std::endl;
 
     // Optional: clipping of values above 32 
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),

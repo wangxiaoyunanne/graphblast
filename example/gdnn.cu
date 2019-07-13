@@ -255,9 +255,9 @@ int main(int argc, char** argv) {
   BOOST_ASSERT_LIST(true_categories, categories_val, ntrain_sample);
 
   std::cout << "Total time (build, infer, check): " 
-      << warmup.ElapsedMillis() << std::endl;
-  std::cout << "Total infer time: " << total_infer_time << std::endl;
-  std::cout << "Total check time: " << total_check_time << std::endl;
+      << warmup.ElapsedMillis() << " ms" << std::endl;
+  std::cout << "Total infer time: " << total_infer_time << " ms" << std::endl;
+  std::cout << "Total check time: " << total_check_time << " ms" << std::endl;
 
   // // Benchmark
   // CpuTimer dnn_gpu_timer;

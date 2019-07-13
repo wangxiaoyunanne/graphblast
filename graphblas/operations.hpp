@@ -32,7 +32,7 @@ Info mxm(Matrix<c>*       C,
 
   // Dimension check
   // Case 1: A *B
-  CHECK(checkDimRowCol(B, A,    "A.ncols != B.nrows"));
+  CHECK(checkDimRowCol(B, A,    "B.nrows != A.ncols"));
   CHECK(checkDimRowRow(A, C,    "A.nrows != C.nrows"));
   CHECK(checkDimColCol(B, C,    "B.ncols != C.ncols"));
   CHECK(checkDimRowRow(C, mask, "C.nrows != mask.nrows"));
@@ -783,6 +783,37 @@ Info applyVxm(Vector<W>*       w,
   return backend::applyVxm<W, U, a, M>(&w->vector_, mask_t, accum, op,
       &u->vector_, &A->matrix_, desc_t);
 }
+
+template <typename a>
+Info prune(float            perc,
+           Matrix<a>*       A,
+           Descriptor*      desc) {
+  if (A == NULL)
+    return GrB_UNINITIALIZED_OBJECT;
+
+  if (perc > 1 || perc < 0.0)
+    return GrB_INVALID_VALUE;
+
+  backend::Descriptor* desc_t = (desc == NULL) ? NULL : &desc->descriptor_;
+
+  return backend::prune(perc, &A->matrix_, desc_t);
+}
+
+template <typename v>
+Info prune(float            perc,
+           Vector<v>*       V,
+           Descriptor*      desc) {
+  if (V == NULL)
+    return GrB_UNINITIALIZED_OBJECT;
+
+  if (perc > 1.0 || perc < 0.0)
+    return GrB_INVALID_VALUE;
+
+  backend::Descriptor* desc_t = (desc == NULL) ? NULL : &desc->descriptor_;
+
+  return backend::prune(perc, &V->vector_, desc_t);
+}
+
 
 }  // namespace graphblas
 
