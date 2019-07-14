@@ -55,6 +55,14 @@ int main(int argc, char** argv) {
   nlayer     = vm["nlayer"    ].as<int>();
   batch_size = vm["batch_size"].as<int>();
 
+
+  bool prune_enabled = true;
+  float prune_rate = 0.4f;
+  int prune_start_layer = 80;
+
+  // Curand generator and states
+  curandState_t* states;
+
   if (nneurons.count(nneuron) == 0 || nlayers.count(nlayer) == 0) {
     std::cout << "Error: Invalid neuron or layer input!\n";
     return 0;
@@ -206,7 +214,7 @@ int main(int argc, char** argv) {
     Y.dup(&mnist);
 
     float gpu_infer_time = graphblas::algorithm::dnn(nneuron, curr_batch_size,
-        mnist, Y, Weights, Biases, filter, transpose, &desc);
+        mnist, Y, Weights, Biases, filter, transpose, prune_enabled, prune_rate, prune_start_layer, &desc);
     warmup.Stop();
 
     // Extract results

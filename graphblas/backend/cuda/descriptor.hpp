@@ -6,7 +6,11 @@
 #include <vector>
 #include <string>
 
+#include <curand.h>
+#include <curand_kernel.h>
+
 #include "graphblas/backend/cuda/util.hpp"
+#include "graphblas/backend/cuda/kernels/generate_random_integer.hpp"
 
 namespace graphblas {
 namespace backend {
@@ -29,6 +33,14 @@ class Descriptor {
     // Preallocate d_temp_size
     d_temp_size_ = 183551;
     CUDA_CALL(cudaMalloc(&d_temp_, d_temp_size_));
+
+    // curand states
+    d_curandStates_size_ = 183551;
+    CUDA_CALL(cudaMalloc(&d_curandStates_, d_curandStates_size_));
+
+    // random numbers
+    d_random_nums_size_ = 183551;
+    CUDA_CALL(cudaMalloc(&d_random_nums_, d_random_nums_size_));
   }
 
   // Default Destructor
@@ -40,6 +52,7 @@ class Descriptor {
 
   // Useful methods
   Info toggle(Desc_field field);
+  Info generateRandomNumbers(Index num_random_nums, Index max_val);
   Info loadArgs(const po::variables_map& vm);
 
   // TODO(@ctcyang): make this static so printMemory can use it
@@ -71,6 +84,10 @@ class Descriptor {
   size_t      d_buffer_size_;
   void*       d_temp_;        // Used for CUB calls
   size_t      d_temp_size_;
+  void*       d_curandStates_; // Used for curand states
+  size_t      d_curandStates_size_;
+  void*       d_random_nums_;  // Used for curand states
+  size_t      d_random_nums_size_;
 
   // MGPU context
   mgpu::ContextPtr d_context_;
@@ -156,6 +173,9 @@ Info Descriptor::resize(size_t target, std::string field) {
   } else if (field == "temp") {
     d_temp_buffer =  d_temp_;
     d_size        = &d_temp_size_;
+  } else if (field == "curand_states") {
+    d_temp_buffer =  d_curandStates_;
+    d_size        = &d_curandStates_size_;
   }
 
   if (target > *d_size) {
@@ -177,6 +197,13 @@ Info Descriptor::resize(size_t target, std::string field) {
       if (d_temp_buffer != NULL)
         CUDA_CALL(cudaMemcpy(d_temp_, d_temp_buffer, *d_size,
             cudaMemcpyDeviceToDevice));
+    } else if (field == "curand_states") {
+      CUDA_CALL(cudaMalloc(&d_curandStates_, target));
+      if (GrB_MEMORY)
+        printMemory("desc_curand_states");
+      if (d_temp_buffer != NULL)
+        CUDA_CALL(cudaMemcpy(d_curandStates_, d_temp_buffer, *d_size,
+            cudaMemcpyDeviceToDevice));
     }
     *d_size = target;
 
@@ -193,8 +220,34 @@ Info Descriptor::clear(std::string field) {
     else if (field == "temp")
       CUDA_CALL(cudaMemset(d_temp_, 0, d_temp_size_));
       // CUDA_CALL( cudaMemsetAsync(d_temp_,   0, d_temp_size_) );
+    else if (field == "curand_states")
+      CUDA_CALL(cudaMemset(d_curandStates_, 0, d_curandStates_size_));
+      // CUDA_CALL( cudaMemsetAsync(d_curandStates,   0, d_curandStates_size_) );
   }
 
+  return GrB_SUCCESS;
+}
+
+Info Descriptor::generateRandomNumbers(Index num_random_nums, Index max_val) {
+  size_t prev_d_curandStates_size_ = d_curandStates_size_;
+  resize(num_random_nums * sizeof(curandState_t), "curand_states");
+
+  dim3 block(512);
+  dim3 grid((d_curandStates_size_ / sizeof(curandState_t) + 511) / 512);
+
+  // Only get new curand states when num_random_nums > previous curand states size
+  if (num_random_nums * sizeof(curandState_t) > prev_d_curandStates_size_) {
+    initCurandStates<<<grid, block>>>((curandState_t *)d_curandStates_, 1234U, (Index)d_curandStates_size_ / sizeof(curandState_t));
+    CUDA_CALL(cudaDeviceSynchronize());
+
+    // Get new random integers
+    generateRandomIntegersUniform<<<grid, block>>>((curandState_t *)d_curandStates_, (Index *)d_random_nums_, num_random_nums, max_val);
+    CUDA_CALL(cudaDeviceSynchronize());
+  }
+
+  // Get new random integers
+  // generateRandomIntegersUniform<<<grid, block>>>((curandState_t *)d_curandStates_, (Index *)d_random_nums_, num_random_nums, max_val);
+  //   CUDA_CALL(cudaDeviceSynchronize());
   return GrB_SUCCESS;
 }
 

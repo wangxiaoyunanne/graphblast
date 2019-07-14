@@ -41,10 +41,17 @@ float dnn (
   bool filter,                  // Filter out 0's from matrix or not
   bool transpose,               // Whether we are doing Y_1 = Y_0 x W + b or
                                 // Y_1^T = W^T x Y_0^T + b^T
+
+  bool prune_enabled,           // Whether do pruning on the matrix
+  float prune_rate,             // Pruning rate
+  int prune_start_layer,        // Which layer pruning starts from
+
   Descriptor* desc              // Descriptor
 ) {
   int nlayers = W.size();
   Index Y0_rows, Y0_cols, Y0_nrows, Y0_ncols;
+  curandState_t *states;
+
   // Using alternative: dense vector
   CHECK(Bias.size(&Y0_rows));
 
@@ -67,8 +74,8 @@ float dnn (
   float gpu_infer_time = 0.f;
   gpu_infer.Start();
   for (int layer = 0; layer < nlayers; layer++) {
-    // if (desc->descriptor_.debug())
-    if (1)
+    if (desc->descriptor_.debug())
+    // if (1)
       std::cout << "=====Layer " << layer + 1 << "=====\n";
 
     if (transpose)
@@ -91,19 +98,22 @@ float dnn (
         &Y, 0.f, desc);
 
     // // Prune non-zero values with a percentage, e.g. perc = 0.1 means 10% of non-zero values will be pruned
-    Index tmp;
-    CHECK(Y.nvals(&tmp));
-    std::cout << "Before pruning: " << tmp << std::endl;
-    if (layer >= 80)
-      prune<T>(0.6f, &Y, desc);
-    CHECK(Y.nvals(&tmp));
-    std::cout << "After pruning: " << tmp << std::endl;
+    Index num_vals;
+    CHECK(Y.nvals(&num_vals));
+    Index num_zeros = (Index)num_vals * prune_rate;
+    // std::cout << "Before pruning: " << num_vals << std::endl;
+    // Pruning
+    if (prune_enabled && layer >= prune_start_layer) {
+      prune<T>(prune_rate, &Y, desc);
+    }
+    // CHECK(Y.nvals(&num_vals));
+    // std::cout << "After pruning: " << num_vals << std::endl;
 
     // Filter out 0's from sparse matrix
     if (filter)
       CHECK(Y.rebuild(0.f, desc));
-    CHECK(Y.nvals(&tmp));
-    std::cout << "After rebuild: " << tmp << std::endl;
+    // CHECK(Y.nvals(&num_vals));
+    // std::cout << "After rebuild: " << num_vals << std::endl;
 
     // Optional: clipping of values above 32 
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),
@@ -111,6 +121,10 @@ float dnn (
   }
   gpu_infer.Stop();
   gpu_infer_time += gpu_infer.ElapsedMillis();
+
+  // Free curandStates if pruning enabled
+  if (prune_enabled)
+    cudaFree(states);
 
   return gpu_infer_time;
 }
