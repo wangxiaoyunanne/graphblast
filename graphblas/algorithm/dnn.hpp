@@ -70,12 +70,14 @@ float dnn (
 
   Matrix<T> Y_swap(Y0_rows, Y0_cols);
 
+  desc->descriptor_.preallocateCurandStates((1850 * numNeurons) >> 1); // A heuristic
+
   backend::GpuTimer gpu_infer;
   float gpu_infer_time = 0.f;
   gpu_infer.Start();
   for (int layer = 0; layer < nlayers; layer++) {
-    if (desc->descriptor_.debug())
-    // if (1)
+    // if (desc->descriptor_.debug())
+    if (1)
       std::cout << "=====Layer " << layer + 1 << "=====\n";
 
     if (transpose)
@@ -98,22 +100,14 @@ float dnn (
         &Y, 0.f, desc);
 
     // // Prune non-zero values with a percentage, e.g. perc = 0.1 means 10% of non-zero values will be pruned
-    Index num_vals;
-    CHECK(Y.nvals(&num_vals));
-    Index num_zeros = (Index)num_vals * prune_rate;
-    // std::cout << "Before pruning: " << num_vals << std::endl;
     // Pruning
     if (prune_enabled && layer >= prune_start_layer) {
       prune<T>(prune_rate, &Y, desc);
     }
-    // CHECK(Y.nvals(&num_vals));
-    // std::cout << "After pruning: " << num_vals << std::endl;
 
     // Filter out 0's from sparse matrix
     if (filter)
       CHECK(Y.rebuild(0.f, desc));
-    // CHECK(Y.nvals(&num_vals));
-    // std::cout << "After rebuild: " << num_vals << std::endl;
 
     // Optional: clipping of values above 32 
     eWiseMult<T, T, T, T>(&Y, GrB_NULL, GrB_NULL, PlusMinimumSemiring<T>(),

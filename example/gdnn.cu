@@ -113,7 +113,8 @@ int main(int argc, char** argv) {
     else
       readMtx(file_name.c_str(), &row_indices, &col_indices, &values,
           &nrows, &ncols, &nvals, directed, mtxinfo, NULL);
-    std::cout << file_name << std::endl;
+    if (debug)
+      std::cout << file_name << std::endl;
     
     // Build matrix
     CHECK((Weights[layer]).build(&row_indices, &col_indices, &values, nvals, GrB_NULL, dat_name));

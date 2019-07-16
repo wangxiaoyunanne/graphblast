@@ -52,6 +52,7 @@ class Descriptor {
 
   // Useful methods
   Info toggle(Desc_field field);
+  Info preallocateCurandStates(Index target);
   Info generateRandomNumbers(Index num_random_nums, Index max_val);
   Info loadArgs(const po::variables_map& vm);
 
@@ -134,8 +135,10 @@ class Descriptor {
 };
 
 Descriptor::~Descriptor() {
-  if (d_buffer_ != NULL) CUDA_CALL(cudaFree(d_buffer_));
-  if (d_temp_   != NULL) CUDA_CALL(cudaFree(d_temp_));
+  if (d_buffer_ != NULL)        CUDA_CALL(cudaFree(d_buffer_));
+  if (d_temp_   != NULL)        CUDA_CALL(cudaFree(d_temp_));
+  if (d_curandStates_ != NULL)  CUDA_CALL(cudaFree(d_curandStates_));
+  if (d_random_nums_ != NULL)   CUDA_CALL(cudaFree(d_random_nums_));
 }
 
 Info Descriptor::set(Desc_field field, Desc_value value) {
@@ -176,6 +179,9 @@ Info Descriptor::resize(size_t target, std::string field) {
   } else if (field == "curand_states") {
     d_temp_buffer =  d_curandStates_;
     d_size        = &d_curandStates_size_;
+  } else if (field == "random_nums") {
+    d_temp_buffer =  d_random_nums_;
+    d_size        = &d_random_nums_size_;
   }
 
   if (target > *d_size) {
@@ -204,6 +210,13 @@ Info Descriptor::resize(size_t target, std::string field) {
       if (d_temp_buffer != NULL)
         CUDA_CALL(cudaMemcpy(d_curandStates_, d_temp_buffer, *d_size,
             cudaMemcpyDeviceToDevice));
+    } else if (field == "random_nums") {
+      CUDA_CALL(cudaMalloc(&d_random_nums_, target));
+      if (GrB_MEMORY)
+        printMemory("desc_random_nums");
+      if (d_temp_buffer != NULL)
+        CUDA_CALL(cudaMemcpy(d_random_nums_, d_temp_buffer, *d_size,
+            cudaMemcpyDeviceToDevice));
     }
     *d_size = target;
 
@@ -223,31 +236,58 @@ Info Descriptor::clear(std::string field) {
     else if (field == "curand_states")
       CUDA_CALL(cudaMemset(d_curandStates_, 0, d_curandStates_size_));
       // CUDA_CALL( cudaMemsetAsync(d_curandStates,   0, d_curandStates_size_) );
+    else if (field == "random_nums")
+      CUDA_CALL(cudaMemset(d_random_nums_, 0, d_random_nums_size_));
+      // CUDA_CALL( cudaMemsetAsync(d_random_nums_,   0, d_random_nums_size) );
   }
 
   return GrB_SUCCESS;
 }
 
+Info Descriptor::preallocateCurandStates(Index target) {
+  resize(target * sizeof(curandState_t), "curand_states");
+  CUDA_CALL(cudaDeviceSynchronize());
+  dim3 block(512);
+  dim3 grid((target + 511) / 512);
+  initCurandStates<<<grid, block>>>((curandState_t *)d_curandStates_, 1234U, target);
+    CUDA_CALL(cudaDeviceSynchronize());
+}
+
 Info Descriptor::generateRandomNumbers(Index num_random_nums, Index max_val) {
   size_t prev_d_curandStates_size_ = d_curandStates_size_;
+
+  // Resize states and random number buffers
   resize(num_random_nums * sizeof(curandState_t), "curand_states");
+  CUDA_CALL(cudaDeviceSynchronize());
+  resize(num_random_nums * sizeof(Index), "random_nums");
+  CUDA_CALL(cudaDeviceSynchronize());
 
   dim3 block(512);
-  dim3 grid((d_curandStates_size_ / sizeof(curandState_t) + 511) / 512);
+  dim3 grid((num_random_nums + 511) / 512);
+
+  // GpuTimer gpu_curand_states;
+  // gpu_curand_states.Start();
 
   // Only get new curand states when num_random_nums > previous curand states size
   if (num_random_nums * sizeof(curandState_t) > prev_d_curandStates_size_) {
+    std::cout << "Reinit curand states" << std::endl;
     initCurandStates<<<grid, block>>>((curandState_t *)d_curandStates_, 1234U, (Index)d_curandStates_size_ / sizeof(curandState_t));
-    CUDA_CALL(cudaDeviceSynchronize());
-
-    // Get new random integers
-    generateRandomIntegersUniform<<<grid, block>>>((curandState_t *)d_curandStates_, (Index *)d_random_nums_, num_random_nums, max_val);
     CUDA_CALL(cudaDeviceSynchronize());
   }
 
+  // gpu_curand_states.Stop();
+  // std::cout << "states time: " << gpu_curand_states.ElapsedMillis() << std::endl;
+
+  // GpuTimer gpu_rng;
+  // gpu_rng.Start();
+
   // Get new random integers
-  // generateRandomIntegersUniform<<<grid, block>>>((curandState_t *)d_curandStates_, (Index *)d_random_nums_, num_random_nums, max_val);
-  //   CUDA_CALL(cudaDeviceSynchronize());
+  generateRandomIntegersUniform<<<grid, block>>>((curandState_t *)d_curandStates_, (Index *)d_random_nums_, num_random_nums, max_val);
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  // gpu_rng.Stop();
+  // std::cout << "rng time: " << gpu_rng.ElapsedMillis() << std::endl;
+
   return GrB_SUCCESS;
 }
 

@@ -1270,7 +1270,16 @@ Info prune(float            perc,
   Index num_zeros = (Index)(num_vals * perc);
   size_t size = num_zeros * sizeof(Index);
 
+  // GpuTimer gpu_rng;
+  // gpu_rng.Start();
+
   CHECK(desc->generateRandomNumbers(num_zeros, num_vals));
+
+  // gpu_rng.Stop();
+  // std::cout << "states+rng time: " << gpu_rng.ElapsedMillis() << std::endl;
+
+  // GpuTimer gpu_scatter;
+  // gpu_scatter.Start();
 
   // Block size and Grid size for generating random numbers.
   dim3 block(512);
@@ -1289,6 +1298,9 @@ Info prune(float            perc,
   // Assign it to the matrix
   scatterKernel<<<grid, block>>>(A->sparse_.d_csrVal_, num_vals, (Index *)desc->d_random_nums_, num_zeros, (T)0);
   CUDA_CALL(cudaDeviceSynchronize());
+
+  // gpu_scatter.Stop();
+  // std::cout << "scatter time: " << gpu_scatter.ElapsedMillis() << std::endl;
 
   return GrB_SUCCESS;
 }
